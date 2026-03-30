@@ -1,0 +1,26 @@
+package services
+
+import (
+	"fmt"
+	"net/url"
+	"strings"
+)
+
+func validateOptionalURL(field, value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return fmt.Errorf("%w: %s must be a valid absolute URL", ErrValidation, field)
+	}
+
+	switch strings.ToLower(parsed.Scheme) {
+	case "http", "https":
+		return nil
+	default:
+		return fmt.Errorf("%w: %s must use http or https", ErrValidation, field)
+	}
+}

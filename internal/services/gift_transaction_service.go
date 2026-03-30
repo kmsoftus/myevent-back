@@ -1,0 +1,296 @@
+package services
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+
+	"myevent-back/internal/dto"
+	"myevent-back/internal/models"
+	"myevent-back/internal/repositories"
+)
+
+type GiftTransactionDetails struct {
+	Transaction *models.GiftTransaction
+	Gift        *models.Gift
+}
+
+type GiftTransactionService struct {
+	events       repositories.EventRepository
+	gifts        repositories.GiftRepository
+	transactions repositories.GiftTransactionRepository
+}
+
+func NewGiftTransactionService(
+	events repositories.EventRepository,
+	gifts repositories.GiftRepository,
+	transactions repositories.GiftTransactionRepository,
+) *GiftTransactionService {
+	return &GiftTransactionService{
+		events:       events,
+		gifts:        gifts,
+		transactions: transactions,
+	}
+}
+
+func (s *GiftTransactionService) ReserveBySlug(ctx context.Context, slug, giftID string, input dto.CreateGiftTransactionRequest) (*GiftTransactionDetails, error) {
+	return s.createPublicTransaction(ctx, slug, giftID, input, "reservation")
+}
+
+func (s *GiftTransactionService) RegisterPixBySlug(ctx context.Context, slug, giftID string, input dto.CreateGiftTransactionRequest) (*GiftTransactionDetails, error) {
+	return s.createPublicTransaction(ctx, slug, giftID, input, "pix")
+}
+
+func (s *GiftTransactionService) ListByEvent(ctx context.Context, userID, eventID string) ([]GiftTransactionDetails, error) {
+	if _, err := s.ensureEventOwnership(ctx, userID, eventID); err != nil {
+		return nil, err
+	}
+
+	transactions, err := s.transactions.ListByEventID(ctx, eventID)
+	if err != nil {
+		return nil, err
+	}
+
+	response := make([]GiftTransactionDetails, 0, len(transactions))
+	for _, transaction := range transactions {
+		gift, err := s.gifts.GetByID(ctx, transaction.GiftID)
+		if err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				continue
+			}
+			return nil, err
+		}
+
+		response = append(response, GiftTransactionDetails{
+			Transaction: transaction,
+			Gift:        gift,
+		})
+	}
+
+	return response, nil
+}
+
+func (s *GiftTransactionService) Confirm(ctx context.Context, userID, eventID, transactionID string, input dto.UpdateGiftTransactionStatusRequest) (*GiftTransactionDetails, error) {
+	if strings.TrimSpace(strings.ToLower(input.Status)) != "confirmed" {
+		return nil, fmt.Errorf("%w: status must be confirmed", ErrValidation)
+	}
+
+	transaction, gift, err := s.getOwnedTransaction(ctx, userID, eventID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+	if transaction.Status == "confirmed" {
+		return nil, fmt.Errorf("%w: transaction already confirmed", ErrConflict)
+	}
+	if transaction.Status == "canceled" {
+		return nil, fmt.Errorf("%w: canceled transaction cannot be confirmed", ErrConflict)
+	}
+
+	now := time.Now().UTC()
+	transaction.Status = "confirmed"
+	transaction.ConfirmedAt = &now
+	transaction.UpdatedAt = now
+	gift.Status = "confirmed"
+	gift.UpdatedAt = now
+
+	if err := s.transactions.Update(ctx, transaction); err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if err := s.gifts.Update(ctx, gift); err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &GiftTransactionDetails{Transaction: transaction, Gift: gift}, nil
+}
+
+func (s *GiftTransactionService) Cancel(ctx context.Context, userID, eventID, transactionID string, input dto.UpdateGiftTransactionStatusRequest) (*GiftTransactionDetails, error) {
+	if strings.TrimSpace(strings.ToLower(input.Status)) != "canceled" {
+		return nil, fmt.Errorf("%w: status must be canceled", ErrValidation)
+	}
+
+	transaction, gift, err := s.getOwnedTransaction(ctx, userID, eventID, transactionID)
+	if err != nil {
+		return nil, err
+	}
+	if transaction.Status == "canceled" {
+		return nil, fmt.Errorf("%w: transaction already canceled", ErrConflict)
+	}
+	if transaction.Status == "confirmed" {
+		return nil, fmt.Errorf("%w: confirmed transaction cannot be canceled", ErrConflict)
+	}
+
+	now := time.Now().UTC()
+	transaction.Status = "canceled"
+	transaction.UpdatedAt = now
+	gift.Status = "available"
+	gift.UpdatedAt = now
+
+	if err := s.transactions.Update(ctx, transaction); err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if err := s.gifts.Update(ctx, gift); err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &GiftTransactionDetails{Transaction: transaction, Gift: gift}, nil
+}
+
+func (s *GiftTransactionService) createPublicTransaction(
+	ctx context.Context,
+	slug, giftID string,
+	input dto.CreateGiftTransactionRequest,
+	transactionType string,
+) (*GiftTransactionDetails, error) {
+	event, err := s.events.GetBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if event.Status != "published" {
+		return nil, ErrNotFound
+	}
+
+	gift, err := s.gifts.GetByID(ctx, giftID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if gift.EventID != event.ID {
+		return nil, ErrNotFound
+	}
+
+	if err := validateGiftTransactionPayload(input.GuestName); err != nil {
+		return nil, err
+	}
+
+	if gift.Status != "available" {
+		return nil, fmt.Errorf("%w: gift is not available", ErrConflict)
+	}
+
+	nextGiftStatus, err := validateGiftAction(gift, transactionType)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	transaction := &models.GiftTransaction{
+		ID:           uuid.NewString(),
+		GiftID:       gift.ID,
+		EventID:      event.ID,
+		GuestName:    strings.TrimSpace(input.GuestName),
+		GuestContact: strings.TrimSpace(input.GuestContact),
+		Type:         transactionType,
+		Status:       "pending",
+		Message:      strings.TrimSpace(input.Message),
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+
+	gift.Status = nextGiftStatus
+	gift.UpdatedAt = now
+
+	if err := s.transactions.Create(ctx, transaction); err != nil {
+		if errors.Is(err, repositories.ErrConflict) {
+			return nil, ErrConflict
+		}
+		return nil, err
+	}
+	if err := s.gifts.Update(ctx, gift); err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &GiftTransactionDetails{Transaction: transaction, Gift: gift}, nil
+}
+
+func (s *GiftTransactionService) getOwnedTransaction(ctx context.Context, userID, eventID, transactionID string) (*models.GiftTransaction, *models.Gift, error) {
+	if _, err := s.ensureEventOwnership(ctx, userID, eventID); err != nil {
+		return nil, nil, err
+	}
+
+	transaction, err := s.transactions.GetByID(ctx, transactionID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, nil, ErrNotFound
+		}
+		return nil, nil, err
+	}
+	if transaction.EventID != eventID {
+		return nil, nil, ErrNotFound
+	}
+
+	gift, err := s.gifts.GetByID(ctx, transaction.GiftID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, nil, ErrNotFound
+		}
+		return nil, nil, err
+	}
+	if gift.EventID != eventID {
+		return nil, nil, ErrNotFound
+	}
+
+	return transaction, gift, nil
+}
+
+func (s *GiftTransactionService) ensureEventOwnership(ctx context.Context, userID, eventID string) (*models.Event, error) {
+	event, err := s.events.GetByID(ctx, eventID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	if event.UserID != userID {
+		return nil, ErrForbidden
+	}
+
+	return event, nil
+}
+
+func validateGiftTransactionPayload(guestName string) error {
+	if strings.TrimSpace(guestName) == "" {
+		return fmt.Errorf("%w: guest_name is required", ErrValidation)
+	}
+	return nil
+}
+
+func validateGiftAction(gift *models.Gift, transactionType string) (string, error) {
+	switch transactionType {
+	case "reservation":
+		if !gift.AllowReservation {
+			return "", fmt.Errorf("%w: gift does not allow reservation", ErrValidation)
+		}
+		return "reserved", nil
+	case "pix":
+		if !gift.AllowPix {
+			return "", fmt.Errorf("%w: gift does not allow pix", ErrValidation)
+		}
+		return "pending_payment", nil
+	default:
+		return "", fmt.Errorf("%w: invalid gift transaction type", ErrValidation)
+	}
+}
