@@ -60,6 +60,8 @@ func main() {
 
 	router := routes.NewRouter(
 		cfg,
+		db,
+		objectStorage,
 		jwtManager,
 		authService,
 		eventService,

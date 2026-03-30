@@ -7,16 +7,20 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"myevent-back/internal/auth"
 	"myevent-back/internal/config"
 	"myevent-back/internal/http/handlers"
 	authmiddleware "myevent-back/internal/http/middleware"
 	"myevent-back/internal/services"
+	"myevent-back/internal/storage"
 )
 
 func NewRouter(
 	cfg config.Config,
+	db *pgxpool.Pool,
+	objectStorage storage.Provider,
 	jwtManager *auth.JWTManager,
 	authService *services.AuthService,
 	eventService *services.EventService,
@@ -44,6 +48,7 @@ func NewRouter(
 		MaxAge:           300,
 	}))
 
+	healthHandler := handlers.NewHealthHandler(db, objectStorage)
 	authHandler := handlers.NewAuthHandler(authService)
 	eventHandler := handlers.NewEventHandler(eventService)
 	publicEventHandler := handlers.NewPublicEventHandler(eventService)
@@ -59,11 +64,7 @@ func NewRouter(
 		router.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(cfg.LocalUploadDir))))
 	}
 
-	router.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	})
+	router.Get("/health", healthHandler.Check)
 
 	router.Route("/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {

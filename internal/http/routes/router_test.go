@@ -652,7 +652,7 @@ func newTestRouter(t *testing.T) http.Handler {
 	dashboardService := services.NewDashboardService(store.Events(), store.Guests(), store.Gifts())
 	uploadService := services.NewUploadService(localStorage, cfg.UploadMaxSizeBytes)
 
-	return NewRouter(cfg, jwtManager, authService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService)
+	return NewRouter(cfg, nil, localStorage, jwtManager, authService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService)
 }
 
 func performJSONRequest(t *testing.T, router http.Handler, method, path, token string, body any) *httptest.ResponseRecorder {
