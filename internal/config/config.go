@@ -14,6 +14,7 @@ type Config struct {
 	FrontendURL        string
 	JWTSecret          string
 	JWTExpiresIn       time.Duration
+	DatabaseURL        string
 	CORSAllowedOrigins []string
 	R2AccountID        string
 	R2AccessKeyID      string
@@ -34,6 +35,7 @@ func Load() Config {
 		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
 		JWTSecret:          getEnv("JWT_SECRET", "super-secret"),
 		JWTExpiresIn:       getDurationEnv("JWT_EXPIRES_IN", 168*time.Hour),
+		DatabaseURL:        getEnv("DATABASE_URL", ""),
 		CORSAllowedOrigins: splitCSV(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")),
 		R2AccountID:        getEnv("R2_ACCOUNT_ID", ""),
 		R2AccessKeyID:      getEnv("R2_ACCESS_KEY_ID", ""),

@@ -8,27 +8,51 @@ import (
 
 	"myevent-back/internal/auth"
 	"myevent-back/internal/config"
+	"myevent-back/internal/database"
 	"myevent-back/internal/http/routes"
-	"myevent-back/internal/repositories/memory"
+	"myevent-back/internal/repositories/postgres"
 	"myevent-back/internal/services"
 	"myevent-back/internal/storage"
 )
 
 func main() {
 	cfg := config.Load()
+
+	if cfg.DatabaseURL == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
+
+	ctx := context.Background()
+
+	if err := database.RunMigrations(cfg.DatabaseURL); err != nil {
+		log.Fatalf("migration error: %v", err)
+	}
+
+	db, err := database.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		log.Fatalf("database connection error: %v", err)
+	}
+	defer db.Close()
+
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiresIn)
 
-	store := memory.NewStore()
+	users := postgres.NewUserRepository(db)
+	events := postgres.NewEventRepository(db)
+	guests := postgres.NewGuestRepository(db)
+	rsvps := postgres.NewRSVPRepository(db)
+	gifts := postgres.NewGiftRepository(db)
+	giftTransactions := postgres.NewGiftTransactionRepository(db)
 
-	authService := services.NewAuthService(store.Users(), jwtManager)
-	eventService := services.NewEventService(store.Events())
-	guestService := services.NewGuestService(store.Events(), store.Guests())
-	rsvpService := services.NewRSVPService(store.Events(), store.Guests(), store.RSVPs())
-	checkInService := services.NewCheckInService(store.Events(), store.Guests())
-	giftService := services.NewGiftService(store.Events(), store.Gifts())
-	giftTransactionService := services.NewGiftTransactionService(store.Events(), store.Gifts(), store.GiftTransactions())
-	dashboardService := services.NewDashboardService(store.Events(), store.Guests(), store.Gifts())
-	objectStorage, err := buildStorage(context.Background(), cfg)
+	authService := services.NewAuthService(users, jwtManager)
+	eventService := services.NewEventService(events)
+	guestService := services.NewGuestService(events, guests)
+	rsvpService := services.NewRSVPService(events, guests, rsvps)
+	checkInService := services.NewCheckInService(events, guests)
+	giftService := services.NewGiftService(events, gifts)
+	giftTransactionService := services.NewGiftTransactionService(events, gifts, giftTransactions)
+	dashboardService := services.NewDashboardService(events, guests, gifts)
+
+	objectStorage, err := buildStorage(ctx, cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
