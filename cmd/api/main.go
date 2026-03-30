@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/joho/godotenv"
+
 	"myevent-back/internal/auth"
 	"myevent-back/internal/config"
 	"myevent-back/internal/database"
@@ -16,6 +18,8 @@ import (
 )
 
 func main() {
+	_ = godotenv.Load()
+
 	cfg := config.Load()
 
 	if cfg.DatabaseURL == "" {
