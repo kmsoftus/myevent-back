@@ -29,7 +29,7 @@ func (h *AuthHandler) Register(w nethttp.ResponseWriter, r *nethttp.Request) {
 		return
 	}
 
-	apphttp.WriteJSON(w, nethttp.StatusCreated, dto.NewAuthResponse(user, token))
+	apphttp.WriteJSON(w, nethttp.StatusCreated, dto.NewAuthResponse(user, token, "Conta criada com sucesso."))
 }
 
 func (h *AuthHandler) Login(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -44,13 +44,34 @@ func (h *AuthHandler) Login(w nethttp.ResponseWriter, r *nethttp.Request) {
 		return
 	}
 
-	apphttp.WriteJSON(w, nethttp.StatusOK, dto.NewAuthResponse(user, token))
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.NewAuthResponse(user, token, "Login realizado com sucesso."))
+}
+
+func (h *AuthHandler) ForgotPassword(w nethttp.ResponseWriter, r *nethttp.Request) {
+	var request dto.ForgotPasswordRequest
+	if !apphttp.DecodeJSON(w, r, &request) {
+		return
+	}
+
+	message, err := h.service.ForgotPassword(r.Context(), request.Email)
+	if err != nil {
+		apphttp.MapError(w, err)
+		return
+	}
+
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.MessageResponse{Message: message})
 }
 
 func (h *AuthHandler) Me(w nethttp.ResponseWriter, r *nethttp.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {
-		apphttp.WriteError(w, nethttp.StatusUnauthorized, "missing authenticated user")
+		apphttp.WriteErrorResponse(
+			w,
+			nethttp.StatusUnauthorized,
+			"Sessao invalida. Faca login novamente.",
+			"auth_session_invalid",
+			nil,
+		)
 		return
 	}
 

@@ -13,6 +13,10 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
+type ForgotPasswordRequest struct {
+	Email string `json:"email"`
+}
+
 type UserResponse struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
@@ -20,8 +24,13 @@ type UserResponse struct {
 }
 
 type AuthResponse struct {
-	User  UserResponse `json:"user"`
-	Token string       `json:"token"`
+	Message string       `json:"message,omitempty"`
+	User    UserResponse `json:"user"`
+	Token   string       `json:"token"`
+}
+
+type MessageResponse struct {
+	Message string `json:"message"`
 }
 
 func NewUserResponse(user *models.User) UserResponse {
@@ -32,9 +41,10 @@ func NewUserResponse(user *models.User) UserResponse {
 	}
 }
 
-func NewAuthResponse(user *models.User, token string) AuthResponse {
+func NewAuthResponse(user *models.User, token, message string) AuthResponse {
 	return AuthResponse{
-		User:  NewUserResponse(user),
-		Token: token,
+		Message: message,
+		User:    NewUserResponse(user),
+		Token:   token,
 	}
 }

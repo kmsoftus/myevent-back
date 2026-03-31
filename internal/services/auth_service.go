@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/mail"
 	"strings"
 	"time"
@@ -33,13 +32,21 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	password = strings.TrimSpace(password)
 
 	if name == "" {
-		return nil, "", fmt.Errorf("%w: name is required", ErrValidation)
+		return nil, "", NewValidationError(
+			"Informe seu nome.",
+			"auth_name_required",
+			FieldError{Field: "name", Message: "Informe seu nome."},
+		)
 	}
 	if err := validateEmail(email); err != nil {
 		return nil, "", err
 	}
 	if len(password) < 8 {
-		return nil, "", fmt.Errorf("%w: password must have at least 8 characters", ErrValidation)
+		return nil, "", NewValidationError(
+			"A senha deve ter pelo menos 8 caracteres.",
+			"auth_password_too_short",
+			FieldError{Field: "password", Message: "A senha deve ter pelo menos 8 caracteres."},
+		)
 	}
 
 	passwordHash, err := auth.HashPassword(password)
@@ -59,7 +66,11 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 
 	if err := s.users.Create(ctx, user); err != nil {
 		if errors.Is(err, repositories.ErrConflict) {
-			return nil, "", fmt.Errorf("%w: email already registered", ErrConflict)
+			return nil, "", NewConflictError(
+				"Este e-mail ja esta cadastrado.",
+				"auth_email_already_registered",
+				FieldError{Field: "email", Message: "Este e-mail ja esta cadastrado."},
+			)
 		}
 		return nil, "", err
 	}
@@ -80,19 +91,29 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*model
 		return nil, "", err
 	}
 	if password == "" {
-		return nil, "", fmt.Errorf("%w: password is required", ErrValidation)
+		return nil, "", NewValidationError(
+			"Informe sua senha.",
+			"auth_password_required",
+			FieldError{Field: "password", Message: "Informe sua senha."},
+		)
 	}
 
 	user, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
-			return nil, "", ErrInvalidCredentials
+			return nil, "", NewInvalidCredentialsError(
+				"E-mail ou senha invalidos.",
+				"auth_invalid_credentials",
+			)
 		}
 		return nil, "", err
 	}
 
 	if err := auth.ComparePassword(user.PasswordHash, password); err != nil {
-		return nil, "", ErrInvalidCredentials
+		return nil, "", NewInvalidCredentialsError(
+			"E-mail ou senha invalidos.",
+			"auth_invalid_credentials",
+		)
 	}
 
 	token, err := s.jwt.GenerateToken(user.ID)
@@ -103,16 +124,32 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*model
 	return user, token, nil
 }
 
+func (s *AuthService) ForgotPassword(_ context.Context, email string) (string, error) {
+	email = normalizeEmail(email)
+
+	if err := validateEmail(email); err != nil {
+		return "", err
+	}
+
+	return "Se o e-mail existir, enviaremos as instrucoes para recuperar sua senha.", nil
+}
+
 func (s *AuthService) Me(ctx context.Context, userID string) (*models.User, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
-		return nil, ErrUnauthorized
+		return nil, NewUnauthorizedError(
+			"Sessao invalida. Faca login novamente.",
+			"auth_session_invalid",
+		)
 	}
 
 	user, err := s.users.GetByID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
-			return nil, ErrUnauthorized
+			return nil, NewUnauthorizedError(
+				"Sessao invalida. Faca login novamente.",
+				"auth_session_invalid",
+			)
 		}
 		return nil, err
 	}
@@ -122,10 +159,18 @@ func (s *AuthService) Me(ctx context.Context, userID string) (*models.User, erro
 
 func validateEmail(email string) error {
 	if email == "" {
-		return fmt.Errorf("%w: email is required", ErrValidation)
+		return NewValidationError(
+			"Informe seu e-mail.",
+			"auth_email_required",
+			FieldError{Field: "email", Message: "Informe seu e-mail."},
+		)
 	}
 	if _, err := mail.ParseAddress(email); err != nil {
-		return fmt.Errorf("%w: invalid email", ErrValidation)
+		return NewValidationError(
+			"Informe um e-mail valido.",
+			"auth_email_invalid",
+			FieldError{Field: "email", Message: "Informe um e-mail valido."},
+		)
 	}
 	return nil
 }

@@ -19,13 +19,25 @@ func Authenticator(jwtManager *auth.JWTManager) func(nethttp.Handler) nethttp.Ha
 		return nethttp.HandlerFunc(func(w nethttp.ResponseWriter, r *nethttp.Request) {
 			token := bearerToken(r.Header.Get("Authorization"))
 			if token == "" {
-				apphttp.WriteError(w, nethttp.StatusUnauthorized, "missing bearer token")
+				apphttp.WriteErrorResponse(
+					w,
+					nethttp.StatusUnauthorized,
+					"Token de acesso nao informado.",
+					"auth_token_missing",
+					nil,
+				)
 				return
 			}
 
 			claims, err := jwtManager.ParseToken(token)
 			if err != nil {
-				apphttp.WriteError(w, nethttp.StatusUnauthorized, "invalid bearer token")
+				apphttp.WriteErrorResponse(
+					w,
+					nethttp.StatusUnauthorized,
+					"Token de acesso invalido ou expirado.",
+					"auth_token_invalid",
+					nil,
+				)
 				return
 			}
 

@@ -70,6 +70,7 @@ func NewRouter(
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", authHandler.Register)
 			r.Post("/login", authHandler.Login)
+			r.Post("/forgot-password", authHandler.ForgotPassword)
 
 			r.Group(func(r chi.Router) {
 				r.Use(authmiddleware.Authenticator(jwtManager))

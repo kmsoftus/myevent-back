@@ -617,6 +617,103 @@ func TestPhaseFourFlow(t *testing.T) {
 	}
 }
 
+func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
+	router := newTestRouter(t)
+
+	invalidRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+		"name":     "Kaleb",
+		"email":    "email-invalido",
+		"password": "12345678",
+	})
+	if invalidRegisterResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid register status 400, got %d", invalidRegisterResponse.Code)
+	}
+
+	var invalidRegisterPayload struct {
+		Message string `json:"message"`
+		Code    string `json:"code"`
+		Details []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"details"`
+	}
+	decodeBody(t, invalidRegisterResponse, &invalidRegisterPayload)
+	if invalidRegisterPayload.Message != "Informe um e-mail valido." {
+		t.Fatalf("expected localized register message, got %q", invalidRegisterPayload.Message)
+	}
+	if invalidRegisterPayload.Code != "auth_email_invalid" {
+		t.Fatalf("expected auth_email_invalid code, got %q", invalidRegisterPayload.Code)
+	}
+	if len(invalidRegisterPayload.Details) != 1 || invalidRegisterPayload.Details[0].Field != "email" {
+		t.Fatalf("expected email field detail, got %+v", invalidRegisterPayload.Details)
+	}
+
+	firstRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+		"name":     "Kaleb",
+		"email":    "kaleb-auth@example.com",
+		"password": "12345678",
+	})
+	if firstRegisterResponse.Code != http.StatusCreated {
+		t.Fatalf("expected first register status 201, got %d", firstRegisterResponse.Code)
+	}
+
+	duplicateRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+		"name":     "Kaleb",
+		"email":    "kaleb-auth@example.com",
+		"password": "12345678",
+	})
+	if duplicateRegisterResponse.Code != http.StatusConflict {
+		t.Fatalf("expected duplicate register status 409, got %d", duplicateRegisterResponse.Code)
+	}
+
+	var duplicateRegisterPayload struct {
+		Message string `json:"message"`
+		Code    string `json:"code"`
+	}
+	decodeBody(t, duplicateRegisterResponse, &duplicateRegisterPayload)
+	if duplicateRegisterPayload.Message != "Este e-mail ja esta cadastrado." {
+		t.Fatalf("expected duplicate email message, got %q", duplicateRegisterPayload.Message)
+	}
+	if duplicateRegisterPayload.Code != "auth_email_already_registered" {
+		t.Fatalf("expected auth_email_already_registered code, got %q", duplicateRegisterPayload.Code)
+	}
+
+	invalidLoginResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/login", "", map[string]any{
+		"email":    "kaleb-auth@example.com",
+		"password": "senha-errada",
+	})
+	if invalidLoginResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("expected invalid login status 401, got %d", invalidLoginResponse.Code)
+	}
+
+	var invalidLoginPayload struct {
+		Message string `json:"message"`
+		Code    string `json:"code"`
+	}
+	decodeBody(t, invalidLoginResponse, &invalidLoginPayload)
+	if invalidLoginPayload.Message != "E-mail ou senha invalidos." {
+		t.Fatalf("expected invalid credentials message, got %q", invalidLoginPayload.Message)
+	}
+	if invalidLoginPayload.Code != "auth_invalid_credentials" {
+		t.Fatalf("expected auth_invalid_credentials code, got %q", invalidLoginPayload.Code)
+	}
+
+	forgotPasswordResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/forgot-password", "", map[string]any{
+		"email": "kaleb-auth@example.com",
+	})
+	if forgotPasswordResponse.Code != http.StatusOK {
+		t.Fatalf("expected forgot password status 200, got %d", forgotPasswordResponse.Code)
+	}
+
+	var forgotPasswordPayload struct {
+		Message string `json:"message"`
+	}
+	decodeBody(t, forgotPasswordResponse, &forgotPasswordPayload)
+	if forgotPasswordPayload.Message == "" {
+		t.Fatal("expected forgot password message")
+	}
+}
+
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
 
