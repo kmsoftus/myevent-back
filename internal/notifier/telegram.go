@@ -106,6 +106,8 @@ func (s *TelegramSender) newRegistrationText(message NewRegistrationMessage) str
 		email = "Sem e-mail"
 	}
 
+	contactPhone := html.EscapeString(strings.TrimSpace(message.ContactPhone))
+
 	createdAt := message.CreatedAt.UTC().Format("2006-01-02 15:04:05 MST")
 	if message.CreatedAt.IsZero() {
 		createdAt = time.Now().UTC().Format("2006-01-02 15:04:05 MST")
@@ -118,6 +120,10 @@ func (s *TelegramSender) newRegistrationText(message NewRegistrationMessage) str
 		fmt.Sprintf("E-mail: %s", email),
 		fmt.Sprintf("User ID: <code>%s</code>", html.EscapeString(strings.TrimSpace(message.UserID))),
 		fmt.Sprintf("Criado em: %s", html.EscapeString(createdAt)),
+	}
+
+	if contactPhone != "" {
+		lines = append(lines, fmt.Sprintf("Contato: %s", contactPhone))
 	}
 
 	if source := html.EscapeString(strings.TrimSpace(message.Attribution.UTMSource)); source != "" {

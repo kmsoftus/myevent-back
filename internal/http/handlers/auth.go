@@ -28,13 +28,22 @@ func (h *AuthHandler) Register(w nethttp.ResponseWriter, r *nethttp.Request) {
 		return
 	}
 
-	user, token, err := h.service.Register(r.Context(), request.Name, request.Email, request.Password, models.UserAttribution{
-		UTMSource:   request.UTMSource,
-		UTMMedium:   request.UTMMedium,
-		UTMCampaign: request.UTMCampaign,
-		UTMTerm:     request.UTMTerm,
-		UTMContent:  request.UTMContent,
-	})
+	user, token, err := h.service.Register(
+		r.Context(),
+		request.Name,
+		request.Email,
+		request.Password,
+		request.ContactPhone,
+		request.AcceptedTerms,
+		request.MarketingOptIn,
+		models.UserAttribution{
+			UTMSource:   request.UTMSource,
+			UTMMedium:   request.UTMMedium,
+			UTMCampaign: request.UTMCampaign,
+			UTMTerm:     request.UTMTerm,
+			UTMContent:  request.UTMContent,
+		},
+	)
 	if err != nil {
 		apphttp.MapError(w, err)
 		return
@@ -123,7 +132,12 @@ func (h *AuthHandler) DeleteMe(w nethttp.ResponseWriter, r *nethttp.Request) {
 		return
 	}
 
-	if err := h.accountService.Delete(r.Context(), userID); err != nil {
+	var request dto.DeleteAccountRequest
+	if !apphttp.DecodeJSON(w, r, &request) {
+		return
+	}
+
+	if err := h.accountService.Delete(r.Context(), userID, request.Email); err != nil {
 		apphttp.MapError(w, err)
 		return
 	}

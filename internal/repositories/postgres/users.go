@@ -12,7 +12,7 @@ import (
 	"myevent-back/internal/repositories"
 )
 
-const userColumns = `id, name, email, password_hash, utm_source, utm_medium, utm_campaign, utm_term, utm_content, created_at, updated_at`
+const userColumns = `id, name, email, contact_phone, accepted_terms, marketing_opt_in, password_hash, utm_source, utm_medium, utm_campaign, utm_term, utm_content, created_at, updated_at`
 
 type UserRepository struct {
 	db *pgxpool.Pool
@@ -24,11 +24,14 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	_, err := r.db.Exec(ctx,
-		`INSERT INTO users (id, name, email, password_hash, utm_source, utm_medium, utm_campaign, utm_term, utm_content, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		`INSERT INTO users (id, name, email, contact_phone, accepted_terms, marketing_opt_in, password_hash, utm_source, utm_medium, utm_campaign, utm_term, utm_content, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
 		user.ID,
 		user.Name,
 		user.Email,
+		user.ContactPhone,
+		user.AcceptedTerms,
+		user.MarketingOptIn,
 		user.PasswordHash,
 		user.Attribution.UTMSource,
 		user.Attribution.UTMMedium,
@@ -55,6 +58,9 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*models.User, 
 		&u.ID,
 		&u.Name,
 		&u.Email,
+		&u.ContactPhone,
+		&u.AcceptedTerms,
+		&u.MarketingOptIn,
 		&u.PasswordHash,
 		&u.Attribution.UTMSource,
 		&u.Attribution.UTMMedium,
@@ -81,6 +87,9 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&u.ID,
 		&u.Name,
 		&u.Email,
+		&u.ContactPhone,
+		&u.AcceptedTerms,
+		&u.MarketingOptIn,
 		&u.PasswordHash,
 		&u.Attribution.UTMSource,
 		&u.Attribution.UTMMedium,

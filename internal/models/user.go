@@ -11,11 +11,14 @@ type UserAttribution struct {
 }
 
 type User struct {
-	ID           string          `json:"id"`
-	Name         string          `json:"name"`
-	Email        string          `json:"email"`
-	PasswordHash string          `json:"-"`
-	Attribution  UserAttribution `json:"attribution,omitempty"`
-	CreatedAt    time.Time       `json:"created_at"`
-	UpdatedAt    time.Time       `json:"updated_at"`
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	Email          string          `json:"email"`
+	ContactPhone   string          `json:"contact_phone,omitempty"`
+	AcceptedTerms  bool            `json:"accepted_terms"`
+	MarketingOptIn bool            `json:"marketing_opt_in"`
+	PasswordHash   string          `json:"-"`
+	Attribution    UserAttribution `json:"attribution,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
 }

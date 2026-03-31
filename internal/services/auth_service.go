@@ -54,10 +54,16 @@ func NewAuthService(
 	}
 }
 
-func (s *AuthService) Register(ctx context.Context, name, email, password string, attribution models.UserAttribution) (*models.User, string, error) {
+func (s *AuthService) Register(
+	ctx context.Context,
+	name, email, password, contactPhone string,
+	acceptedTerms, marketingOptIn bool,
+	attribution models.UserAttribution,
+) (*models.User, string, error) {
 	name = strings.TrimSpace(name)
 	email = normalizeEmail(email)
 	password = strings.TrimSpace(password)
+	contactPhone = normalizeContactPhone(contactPhone)
 	attribution = normalizeUserAttribution(attribution)
 
 	if name == "" {
@@ -68,6 +74,12 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 		)
 	}
 	if err := validateEmail(email); err != nil {
+		return nil, "", err
+	}
+	if err := validateAcceptedTerms(acceptedTerms); err != nil {
+		return nil, "", err
+	}
+	if err := validateContactPhone(contactPhone); err != nil {
 		return nil, "", err
 	}
 	if err := validatePassword(password); err != nil {
@@ -81,13 +93,16 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 
 	now := time.Now().UTC()
 	user := &models.User{
-		ID:           uuid.NewString(),
-		Name:         name,
-		Email:        email,
-		PasswordHash: passwordHash,
-		Attribution:  attribution,
-		CreatedAt:    now,
-		UpdatedAt:    now,
+		ID:             uuid.NewString(),
+		Name:           name,
+		Email:          email,
+		ContactPhone:   contactPhone,
+		AcceptedTerms:  acceptedTerms,
+		MarketingOptIn: marketingOptIn,
+		PasswordHash:   passwordHash,
+		Attribution:    attribution,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
 
 	if err := s.users.Create(ctx, user); err != nil {
@@ -107,11 +122,12 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	}
 
 	if err := s.registrationSender.SendNewRegistration(ctx, notifier.NewRegistrationMessage{
-		UserID:      user.ID,
-		Name:        user.Name,
-		Email:       user.Email,
-		Attribution: user.Attribution,
-		CreatedAt:   user.CreatedAt,
+		UserID:       user.ID,
+		Name:         user.Name,
+		Email:        user.Email,
+		ContactPhone: user.ContactPhone,
+		Attribution:  user.Attribution,
+		CreatedAt:    user.CreatedAt,
 	}); err != nil {
 		log.Printf("telegram registration notification failed for user %s: %v", user.ID, err)
 	}
@@ -201,6 +217,41 @@ func validateEmail(email string) error {
 	return nil
 }
 
+func validateAcceptedTerms(acceptedTerms bool) error {
+	if acceptedTerms {
+		return nil
+	}
+
+	return NewValidationError(
+		"Voce precisa aceitar os Termos de Uso e a Politica de Privacidade.",
+		"auth_terms_required",
+		FieldError{
+			Field:   "accepted_terms",
+			Message: "Voce precisa aceitar os Termos de Uso e a Politica de Privacidade.",
+		},
+	)
+}
+
+func validateContactPhone(contactPhone string) error {
+	if contactPhone == "" {
+		return nil
+	}
+
+	digits := onlyDigits(contactPhone)
+	if len(digits) == 10 || len(digits) == 11 {
+		return nil
+	}
+
+	return NewValidationError(
+		"Informe um numero de contato valido ou deixe o campo vazio.",
+		"auth_contact_phone_invalid",
+		FieldError{
+			Field:   "contact_phone",
+			Message: "Informe um numero de contato valido ou deixe o campo vazio.",
+		},
+	)
+}
+
 func validatePassword(password string) error {
 	if len(strings.TrimSpace(password)) < 8 {
 		return NewValidationError(
@@ -217,6 +268,10 @@ func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+func normalizeContactPhone(contactPhone string) string {
+	return formatContactPhone(onlyDigits(contactPhone))
+}
+
 func normalizeUserAttribution(attribution models.UserAttribution) models.UserAttribution {
 	return models.UserAttribution{
 		UTMSource:   strings.TrimSpace(attribution.UTMSource),
@@ -225,4 +280,27 @@ func normalizeUserAttribution(attribution models.UserAttribution) models.UserAtt
 		UTMTerm:     strings.TrimSpace(attribution.UTMTerm),
 		UTMContent:  strings.TrimSpace(attribution.UTMContent),
 	}
+}
+
+func onlyDigits(value string) string {
+	var builder strings.Builder
+	builder.Grow(len(value))
+	for _, char := range value {
+		if char >= '0' && char <= '9' {
+			builder.WriteRune(char)
+		}
+	}
+
+	return builder.String()
+}
+
+func formatContactPhone(digits string) string {
+	if len(digits) == 11 {
+		return "(" + digits[:2] + ") " + digits[2:7] + "-" + digits[7:]
+	}
+	if len(digits) == 10 {
+		return "(" + digits[:2] + ") " + digits[2:6] + "-" + digits[6:]
+	}
+
+	return digits
 }

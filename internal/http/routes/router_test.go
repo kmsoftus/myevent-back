@@ -28,9 +28,10 @@ func TestPhaseOneFlow(t *testing.T) {
 	router := newTestRouter(t)
 
 	registerBody := map[string]any{
-		"name":     "Kaleb",
-		"email":    "kaleb@example.com",
-		"password": "12345678",
+		"name":           "Kaleb",
+		"email":          "kaleb@example.com",
+		"password":       "12345678",
+		"accepted_terms": true,
 	}
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", registerBody)
 	if registerResponse.Code != http.StatusCreated {
@@ -228,9 +229,10 @@ func TestPhaseThreeFlow(t *testing.T) {
 	router := newTestRouter(t)
 
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
-		"name":     "Kaleb",
-		"email":    "kaleb-phase3@example.com",
-		"password": "12345678",
+		"name":           "Kaleb",
+		"email":          "kaleb-phase3@example.com",
+		"password":       "12345678",
+		"accepted_terms": true,
 	})
 	if registerResponse.Code != http.StatusCreated {
 		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
@@ -489,9 +491,10 @@ func TestPhaseFourFlow(t *testing.T) {
 	router := newTestRouter(t)
 
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
-		"name":     "Kaleb",
-		"email":    "kaleb-phase4@example.com",
-		"password": "12345678",
+		"name":           "Kaleb",
+		"email":          "kaleb-phase4@example.com",
+		"password":       "12345678",
+		"accepted_terms": true,
 	})
 	if registerResponse.Code != http.StatusCreated {
 		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
@@ -638,9 +641,10 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 	router, passwordResetSender, _, _, _ := newTestRouterWithDeps(t)
 
 	invalidRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
-		"name":     "Kaleb",
-		"email":    "email-invalido",
-		"password": "12345678",
+		"name":           "Kaleb",
+		"email":          "email-invalido",
+		"password":       "12345678",
+		"accepted_terms": true,
 	})
 	if invalidRegisterResponse.Code != http.StatusBadRequest {
 		t.Fatalf("expected invalid register status 400, got %d", invalidRegisterResponse.Code)
@@ -665,19 +669,48 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 		t.Fatalf("expected email field detail, got %+v", invalidRegisterPayload.Details)
 	}
 
-	firstRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+	missingTermsResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":     "Kaleb",
-		"email":    "kaleb-auth@example.com",
+		"email":    "kaleb-sem-termos@example.com",
 		"password": "12345678",
+	})
+	if missingTermsResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected missing terms status 400, got %d", missingTermsResponse.Code)
+	}
+
+	var missingTermsPayload struct {
+		Message string `json:"message"`
+		Code    string `json:"code"`
+		Details []struct {
+			Field string `json:"field"`
+		} `json:"details"`
+	}
+	decodeBody(t, missingTermsResponse, &missingTermsPayload)
+	if missingTermsPayload.Message != "Voce precisa aceitar os Termos de Uso e a Politica de Privacidade." {
+		t.Fatalf("expected missing terms message, got %q", missingTermsPayload.Message)
+	}
+	if missingTermsPayload.Code != "auth_terms_required" {
+		t.Fatalf("expected auth_terms_required code, got %q", missingTermsPayload.Code)
+	}
+	if len(missingTermsPayload.Details) != 1 || missingTermsPayload.Details[0].Field != "accepted_terms" {
+		t.Fatalf("expected accepted_terms field detail, got %+v", missingTermsPayload.Details)
+	}
+
+	firstRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+		"name":           "Kaleb",
+		"email":          "kaleb-auth@example.com",
+		"password":       "12345678",
+		"accepted_terms": true,
 	})
 	if firstRegisterResponse.Code != http.StatusCreated {
 		t.Fatalf("expected first register status 201, got %d", firstRegisterResponse.Code)
 	}
 
 	duplicateRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
-		"name":     "Kaleb",
-		"email":    "kaleb-auth@example.com",
-		"password": "12345678",
+		"name":           "Kaleb",
+		"email":          "kaleb-auth@example.com",
+		"password":       "12345678",
+		"accepted_terms": true,
 	})
 	if duplicateRegisterResponse.Code != http.StatusConflict {
 		t.Fatalf("expected duplicate register status 409, got %d", duplicateRegisterResponse.Code)
@@ -780,12 +813,15 @@ func TestRegisterSendsTelegramNotification(t *testing.T) {
 	router, _, registrationSender, store, _ := newTestRouterWithDeps(t)
 
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
-		"name":         "Kaleb",
-		"email":        "kaleb-telegram@example.com",
-		"password":     "12345678",
-		"utm_source":   "google",
-		"utm_medium":   "cpc",
-		"utm_campaign": "casamento-2026",
+		"name":             "Kaleb",
+		"email":            "kaleb-telegram@example.com",
+		"password":         "12345678",
+		"contact_phone":    "(11) 99999-9999",
+		"accepted_terms":   true,
+		"marketing_opt_in": true,
+		"utm_source":       "google",
+		"utm_medium":       "cpc",
+		"utm_campaign":     "casamento-2026",
 	})
 	if registerResponse.Code != http.StatusCreated {
 		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
@@ -802,6 +838,9 @@ func TestRegisterSendsTelegramNotification(t *testing.T) {
 	if message.Email != "kaleb-telegram@example.com" {
 		t.Fatalf("expected registration email to match, got %q", message.Email)
 	}
+	if message.ContactPhone != "(11) 99999-9999" {
+		t.Fatalf("expected registration contact phone to match, got %q", message.ContactPhone)
+	}
 	if message.UserID == "" {
 		t.Fatal("expected registration notification to include user ID")
 	}
@@ -816,6 +855,15 @@ func TestRegisterSendsTelegramNotification(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load saved user: %v", err)
 	}
+	if user.ContactPhone != "(11) 99999-9999" {
+		t.Fatalf("expected saved user contact phone, got %q", user.ContactPhone)
+	}
+	if !user.AcceptedTerms {
+		t.Fatal("expected accepted_terms to be saved")
+	}
+	if !user.MarketingOptIn {
+		t.Fatal("expected marketing_opt_in to be saved")
+	}
 	if user.Attribution.UTMSource != "google" || user.Attribution.UTMMedium != "cpc" || user.Attribution.UTMCampaign != "casamento-2026" {
 		t.Fatalf("expected saved user attribution, got %+v", user.Attribution)
 	}
@@ -825,9 +873,10 @@ func TestCreateEventRejectsPastDate(t *testing.T) {
 	router := newTestRouter(t)
 
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
-		"name":     "Kaleb",
-		"email":    "kaleb-past-date@example.com",
-		"password": "12345678",
+		"name":           "Kaleb",
+		"email":          "kaleb-past-date@example.com",
+		"password":       "12345678",
+		"accepted_terms": true,
 	})
 	if registerResponse.Code != http.StatusCreated {
 		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
@@ -862,9 +911,10 @@ func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
 	router, _, _, _, uploadDir := newTestRouterWithDeps(t)
 
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
-		"name":     "Kaleb",
-		"email":    "kaleb-delete@example.com",
-		"password": "12345678",
+		"name":           "Kaleb",
+		"email":          "kaleb-delete@example.com",
+		"password":       "12345678",
+		"accepted_terms": true,
 	})
 	if registerResponse.Code != http.StatusCreated {
 		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
@@ -913,7 +963,9 @@ func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
 		t.Fatalf("expected uploaded asset to exist before account deletion: %v", err)
 	}
 
-	deleteAccountResponse := performJSONRequest(t, router, http.MethodDelete, "/v1/auth/me", authPayload.Token, nil)
+	deleteAccountResponse := performJSONRequest(t, router, http.MethodDelete, "/v1/auth/me", authPayload.Token, map[string]any{
+		"email": "kaleb-delete@example.com",
+	})
 	if deleteAccountResponse.Code != http.StatusOK {
 		t.Fatalf("expected delete account status 200, got %d", deleteAccountResponse.Code)
 	}
@@ -933,6 +985,56 @@ func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
 	})
 	if loginResponse.Code != http.StatusUnauthorized {
 		t.Fatalf("expected deleted account login to fail, got %d", loginResponse.Code)
+	}
+}
+
+func TestDeleteAccountRequiresMatchingConfirmationEmail(t *testing.T) {
+	router := newTestRouter(t)
+
+	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+		"name":           "Kaleb",
+		"email":          "kaleb-delete-confirm@example.com",
+		"password":       "12345678",
+		"accepted_terms": true,
+	})
+	if registerResponse.Code != http.StatusCreated {
+		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
+	}
+
+	var authPayload struct {
+		Token string `json:"token"`
+	}
+	decodeBody(t, registerResponse, &authPayload)
+
+	deleteAccountResponse := performJSONRequest(t, router, http.MethodDelete, "/v1/auth/me", authPayload.Token, map[string]any{
+		"email": "outro-email@example.com",
+	})
+	if deleteAccountResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected delete account status 400, got %d", deleteAccountResponse.Code)
+	}
+
+	var deletePayload struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+		Details []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"details"`
+	}
+	decodeBody(t, deleteAccountResponse, &deletePayload)
+	if deletePayload.Code != "auth_delete_email_mismatch" {
+		t.Fatalf("expected auth_delete_email_mismatch code, got %q", deletePayload.Code)
+	}
+	if deletePayload.Message != "O e-mail digitado nao confere com a conta." {
+		t.Fatalf("expected mismatch message, got %q", deletePayload.Message)
+	}
+	if len(deletePayload.Details) != 1 || deletePayload.Details[0].Field != "email" {
+		t.Fatalf("expected email field detail, got %+v", deletePayload.Details)
+	}
+
+	meResponse := performJSONRequest(t, router, http.MethodGet, "/v1/auth/me", authPayload.Token, nil)
+	if meResponse.Code != http.StatusOK {
+		t.Fatalf("expected account to remain active after invalid confirmation, got %d", meResponse.Code)
 	}
 }
 

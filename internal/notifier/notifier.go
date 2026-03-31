@@ -8,11 +8,12 @@ import (
 )
 
 type NewRegistrationMessage struct {
-	UserID      string
-	Name        string
-	Email       string
-	Attribution models.UserAttribution
-	CreatedAt   time.Time
+	UserID       string
+	Name         string
+	Email        string
+	ContactPhone string
+	Attribution  models.UserAttribution
+	CreatedAt    time.Time
 }
 
 type RegistrationSender interface {

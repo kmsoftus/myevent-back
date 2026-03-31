@@ -29,8 +29,9 @@ func NewAccountService(
 	}
 }
 
-func (s *AccountService) Delete(ctx context.Context, userID string) error {
+func (s *AccountService) Delete(ctx context.Context, userID, email string) error {
 	userID = strings.TrimSpace(userID)
+	email = normalizeEmail(email)
 	if userID == "" {
 		return NewUnauthorizedError(
 			"Sessao invalida. Faca login novamente.",
@@ -38,7 +39,19 @@ func (s *AccountService) Delete(ctx context.Context, userID string) error {
 		)
 	}
 
-	if _, err := s.users.GetByID(ctx, userID); err != nil {
+	if email == "" {
+		return NewValidationError(
+			"Digite o e-mail da conta para confirmar a exclusao.",
+			"auth_delete_email_required",
+			FieldError{Field: "email", Message: "Digite o e-mail da conta para confirmar a exclusao."},
+		)
+	}
+	if err := validateEmail(email); err != nil {
+		return err
+	}
+
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
 			return NewUnauthorizedError(
 				"Sessao invalida. Faca login novamente.",
@@ -46,6 +59,13 @@ func (s *AccountService) Delete(ctx context.Context, userID string) error {
 			)
 		}
 		return err
+	}
+	if normalizeEmail(user.Email) != email {
+		return NewValidationError(
+			"O e-mail digitado nao confere com a conta.",
+			"auth_delete_email_mismatch",
+			FieldError{Field: "email", Message: "O e-mail digitado nao confere com a conta."},
+		)
 	}
 
 	managedKeys, err := s.collectManagedUploadKeys(ctx, userID)
