@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"net/url"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -44,7 +45,7 @@ func NewR2Storage(ctx context.Context, cfg R2Config) (*R2Storage, error) {
 	return &R2Storage{
 		client:    client,
 		bucket:    cfg.Bucket,
-		publicURL: strings.TrimRight(cfg.PublicURL, "/"),
+		publicURL: normalizeR2PublicURL(cfg.PublicURL, cfg.Endpoint, cfg.Bucket),
 	}, nil
 }
 
@@ -68,4 +69,34 @@ func (s *R2Storage) DeleteObject(ctx context.Context, key string) error {
 		Key:    aws.String(key),
 	})
 	return err
+}
+
+func normalizeR2PublicURL(publicURL, endpoint, bucket string) string {
+	publicURL = strings.TrimRight(strings.TrimSpace(publicURL), "/")
+	if publicURL == "" {
+		return ""
+	}
+
+	publicParsed, err := url.Parse(publicURL)
+	if err != nil {
+		return publicURL
+	}
+
+	if trimmedPath := strings.Trim(publicParsed.Path, "/"); trimmedPath != "" {
+		return publicURL
+	}
+
+	endpointParsed, err := url.Parse(strings.TrimSpace(endpoint))
+	if err != nil {
+		return publicURL
+	}
+
+	bucket = strings.Trim(strings.TrimSpace(bucket), "/")
+	endpointPath := strings.Trim(endpointParsed.Path, "/")
+	if bucket == "" || endpointPath != bucket {
+		return publicURL
+	}
+
+	publicParsed.Path = "/" + bucket
+	return strings.TrimRight(publicParsed.String(), "/")
 }
