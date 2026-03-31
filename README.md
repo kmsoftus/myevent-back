@@ -15,6 +15,7 @@ Implementacao do backend MVP em Go, cobrindo as fases 1 a 4.
 - presentes, reservas e fluxo de Pix manual
 - upload autenticado com suporte a Cloudflare R2 e fallback local
 - presets de tema e validacoes extras de URL
+- recuperacao de senha com token e envio transacional via Brevo
 - validacoes basicas, JWT e CORS
 - persistencia em memoria, pronta para troca por Postgres via interfaces
 
@@ -29,3 +30,15 @@ Servidor padrao em `http://localhost:8080`.
 
 Se as variaveis do R2 nao estiverem preenchidas, os uploads ficam em `LOCAL_UPLOAD_DIR`
 e sao servidos em `http://localhost:8080/uploads/...`.
+
+## Variaveis para recuperacao de senha
+
+Preencha estas variaveis para habilitar o envio de e-mails pela Brevo:
+
+```bash
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=
+BREVO_SENDER_NAME=MyEvent
+PASSWORD_RESET_URL=http://localhost:3000/redefinir-senha
+PASSWORD_RESET_TTL=1h
+```

@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"errors"
+	"time"
 
 	"myevent-back/internal/models"
 )
@@ -16,6 +17,13 @@ type UserRepository interface {
 	Create(ctx context.Context, user *models.User) error
 	GetByID(ctx context.Context, id string) (*models.User, error)
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
+	UpdatePassword(ctx context.Context, id, passwordHash string, updatedAt time.Time) error
+}
+
+type PasswordResetTokenRepository interface {
+	Create(ctx context.Context, token *models.PasswordResetToken) error
+	DeleteActiveByUserID(ctx context.Context, userID string, now time.Time) error
+	Consume(ctx context.Context, tokenHash string, now time.Time) (*models.PasswordResetToken, error)
 }
 
 type EventRepository interface {

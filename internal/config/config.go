@@ -12,10 +12,15 @@ type Config struct {
 	AppPort            string
 	AppBaseURL         string
 	FrontendURL        string
+	PasswordResetURL   string
 	JWTSecret          string
 	JWTExpiresIn       time.Duration
 	DatabaseURL        string
 	CORSAllowedOrigins []string
+	BrevoAPIKey        string
+	BrevoSenderEmail   string
+	BrevoSenderName    string
+	PasswordResetTTL   time.Duration
 	R2AccountID        string
 	R2AccessKeyID      string
 	R2SecretAccessKey  string
@@ -28,15 +33,22 @@ type Config struct {
 }
 
 func Load() Config {
+	frontendURL := getEnv("FRONTEND_URL", "http://localhost:3000")
+
 	return Config{
 		AppEnv:             getEnv("APP_ENV", "development"),
 		AppPort:            getEnv("APP_PORT", "8080"),
 		AppBaseURL:         getEnv("APP_BASE_URL", "http://localhost:8080"),
-		FrontendURL:        getEnv("FRONTEND_URL", "http://localhost:3000"),
+		FrontendURL:        frontendURL,
+		PasswordResetURL:   getEnv("PASSWORD_RESET_URL", strings.TrimRight(frontendURL, "/")+"/redefinir-senha"),
 		JWTSecret:          getEnv("JWT_SECRET", "super-secret"),
 		JWTExpiresIn:       getDurationEnv("JWT_EXPIRES_IN", 168*time.Hour),
 		DatabaseURL:        getEnv("DATABASE_URL", ""),
 		CORSAllowedOrigins: splitCSV(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")),
+		BrevoAPIKey:        getEnv("BREVO_API_KEY", ""),
+		BrevoSenderEmail:   getEnv("BREVO_SENDER_EMAIL", ""),
+		BrevoSenderName:    getEnv("BREVO_SENDER_NAME", "MyEvent"),
+		PasswordResetTTL:   getDurationEnv("PASSWORD_RESET_TTL", time.Hour),
 		R2AccountID:        getEnv("R2_ACCOUNT_ID", ""),
 		R2AccessKeyID:      getEnv("R2_ACCESS_KEY_ID", ""),
 		R2SecretAccessKey:  getEnv("R2_SECRET_ACCESS_KEY", ""),
@@ -55,6 +67,11 @@ func (c Config) UseR2Storage() bool {
 		strings.TrimSpace(c.R2Bucket) != "" &&
 		strings.TrimSpace(c.R2Endpoint) != "" &&
 		strings.TrimSpace(c.R2PublicURL) != ""
+}
+
+func (c Config) UseBrevoEmail() bool {
+	return strings.TrimSpace(c.BrevoAPIKey) != "" &&
+		strings.TrimSpace(c.BrevoSenderEmail) != ""
 }
 
 func getEnv(key, fallback string) string {

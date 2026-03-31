@@ -62,6 +62,21 @@ func (h *AuthHandler) ForgotPassword(w nethttp.ResponseWriter, r *nethttp.Reques
 	apphttp.WriteJSON(w, nethttp.StatusOK, dto.MessageResponse{Message: message})
 }
 
+func (h *AuthHandler) ResetPassword(w nethttp.ResponseWriter, r *nethttp.Request) {
+	var request dto.ResetPasswordRequest
+	if !apphttp.DecodeJSON(w, r, &request) {
+		return
+	}
+
+	message, err := h.service.ResetPassword(r.Context(), request.Token, request.Password)
+	if err != nil {
+		apphttp.MapError(w, err)
+		return
+	}
+
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.MessageResponse{Message: message})
+}
+
 func (h *AuthHandler) Me(w nethttp.ResponseWriter, r *nethttp.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {

@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"myevent-back/internal/models"
 	"myevent-back/internal/repositories"
@@ -15,6 +16,10 @@ type Store struct {
 
 	users       map[string]*models.User
 	userByEmail map[string]string
+
+	passwordResetTokens         map[string]*models.PasswordResetToken
+	passwordResetTokenByHash    map[string]string
+	passwordResetTokenIDsByUser map[string]map[string]struct{}
 
 	events      map[string]*models.Event
 	eventBySlug map[string]string
@@ -37,21 +42,24 @@ type Store struct {
 
 func NewStore() *Store {
 	return &Store{
-		users:                     make(map[string]*models.User),
-		userByEmail:               make(map[string]string),
-		events:                    make(map[string]*models.Event),
-		eventBySlug:               make(map[string]string),
-		guests:                    make(map[string]*models.Guest),
-		guestIDsByEvent:           make(map[string]map[string]struct{}),
-		guestByInvite:             make(map[string]string),
-		guestByQRToken:            make(map[string]string),
-		rsvps:                     make(map[string]*models.RSVP),
-		rsvpByGuest:               make(map[string]string),
-		rsvpIDsByEvent:            make(map[string]map[string]struct{}),
-		gifts:                     make(map[string]*models.Gift),
-		giftIDsByEvent:            make(map[string]map[string]struct{}),
-		giftTransactions:          make(map[string]*models.GiftTransaction),
-		giftTransactionIDsByEvent: make(map[string]map[string]struct{}),
+		users:                       make(map[string]*models.User),
+		userByEmail:                 make(map[string]string),
+		passwordResetTokens:         make(map[string]*models.PasswordResetToken),
+		passwordResetTokenByHash:    make(map[string]string),
+		passwordResetTokenIDsByUser: make(map[string]map[string]struct{}),
+		events:                      make(map[string]*models.Event),
+		eventBySlug:                 make(map[string]string),
+		guests:                      make(map[string]*models.Guest),
+		guestIDsByEvent:             make(map[string]map[string]struct{}),
+		guestByInvite:               make(map[string]string),
+		guestByQRToken:              make(map[string]string),
+		rsvps:                       make(map[string]*models.RSVP),
+		rsvpByGuest:                 make(map[string]string),
+		rsvpIDsByEvent:              make(map[string]map[string]struct{}),
+		gifts:                       make(map[string]*models.Gift),
+		giftIDsByEvent:              make(map[string]map[string]struct{}),
+		giftTransactions:            make(map[string]*models.GiftTransaction),
+		giftTransactionIDsByEvent:   make(map[string]map[string]struct{}),
 	}
 }
 
@@ -61,6 +69,10 @@ func (s *Store) Users() repositories.UserRepository {
 
 func (s *Store) Events() repositories.EventRepository {
 	return &eventRepository{store: s}
+}
+
+func (s *Store) PasswordResetTokens() repositories.PasswordResetTokenRepository {
+	return &passwordResetTokenRepository{store: s}
 }
 
 func (s *Store) Guests() repositories.GuestRepository {
@@ -121,7 +133,99 @@ func (r *userRepository) GetByEmail(_ context.Context, email string) (*models.Us
 	return cloneUser(r.store.users[id]), nil
 }
 
+func (r *userRepository) UpdatePassword(_ context.Context, id, passwordHash string, updatedAt time.Time) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	user, ok := r.store.users[id]
+	if !ok {
+		return repositories.ErrNotFound
+	}
+
+	user.PasswordHash = passwordHash
+	user.UpdatedAt = updatedAt
+	return nil
+}
+
+func (r *passwordResetTokenRepository) Create(_ context.Context, token *models.PasswordResetToken) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	if _, exists := r.store.passwordResetTokens[token.ID]; exists {
+		return repositories.ErrConflict
+	}
+	if _, exists := r.store.passwordResetTokenByHash[token.TokenHash]; exists {
+		return repositories.ErrConflict
+	}
+
+	r.store.passwordResetTokens[token.ID] = clonePasswordResetToken(token)
+	r.store.passwordResetTokenByHash[token.TokenHash] = token.ID
+
+	if _, ok := r.store.passwordResetTokenIDsByUser[token.UserID]; !ok {
+		r.store.passwordResetTokenIDsByUser[token.UserID] = make(map[string]struct{})
+	}
+	r.store.passwordResetTokenIDsByUser[token.UserID][token.ID] = struct{}{}
+
+	return nil
+}
+
+func (r *passwordResetTokenRepository) DeleteActiveByUserID(_ context.Context, userID string, now time.Time) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	tokenIDs := r.store.passwordResetTokenIDsByUser[userID]
+	for tokenID := range tokenIDs {
+		token, ok := r.store.passwordResetTokens[tokenID]
+		if !ok {
+			delete(tokenIDs, tokenID)
+			continue
+		}
+		if token.UsedAt == nil && token.ExpiresAt.After(now) {
+			delete(r.store.passwordResetTokenByHash, token.TokenHash)
+			delete(r.store.passwordResetTokens, tokenID)
+			delete(tokenIDs, tokenID)
+		}
+	}
+
+	if len(tokenIDs) == 0 {
+		delete(r.store.passwordResetTokenIDsByUser, userID)
+	}
+
+	return nil
+}
+
+func (r *passwordResetTokenRepository) Consume(_ context.Context, tokenHash string, now time.Time) (*models.PasswordResetToken, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	tokenID, ok := r.store.passwordResetTokenByHash[tokenHash]
+	if !ok {
+		return nil, repositories.ErrNotFound
+	}
+
+	token, ok := r.store.passwordResetTokens[tokenID]
+	if !ok {
+		delete(r.store.passwordResetTokenByHash, tokenHash)
+		return nil, repositories.ErrNotFound
+	}
+
+	if token.UsedAt != nil || !token.ExpiresAt.After(now) {
+		delete(r.store.passwordResetTokenByHash, tokenHash)
+		return nil, repositories.ErrNotFound
+	}
+
+	usedAt := now
+	token.UsedAt = &usedAt
+	delete(r.store.passwordResetTokenByHash, tokenHash)
+
+	return clonePasswordResetToken(token), nil
+}
+
 type eventRepository struct {
+	store *Store
+}
+
+type passwordResetTokenRepository struct {
 	store *Store
 }
 
@@ -623,6 +727,15 @@ func cloneGiftTransaction(transaction *models.GiftTransaction) *models.GiftTrans
 	if transaction.ConfirmedAt != nil {
 		confirmedAt := *transaction.ConfirmedAt
 		copy.ConfirmedAt = &confirmedAt
+	}
+	return &copy
+}
+
+func clonePasswordResetToken(token *models.PasswordResetToken) *models.PasswordResetToken {
+	copy := *token
+	if token.UsedAt != nil {
+		usedAt := *token.UsedAt
+		copy.UsedAt = &usedAt
 	}
 	return &copy
 }

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -60,4 +61,22 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		return nil, err
 	}
 	return &u, nil
+}
+
+func (r *UserRepository) UpdatePassword(ctx context.Context, id, passwordHash string, updatedAt time.Time) error {
+	commandTag, err := r.db.Exec(ctx,
+		`UPDATE users
+		    SET password_hash = $2,
+		        updated_at = $3
+		  WHERE id = $1`,
+		id, passwordHash, updatedAt,
+	)
+	if err != nil {
+		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		return repositories.ErrNotFound
+	}
+
+	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"myevent-back/internal/config"
 	"myevent-back/internal/database"
 	"myevent-back/internal/http/routes"
+	"myevent-back/internal/mailer"
 	"myevent-back/internal/repositories/postgres"
 	"myevent-back/internal/services"
 	"myevent-back/internal/storage"
@@ -41,13 +42,22 @@ func main() {
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiresIn)
 
 	users := postgres.NewUserRepository(db)
+	passwordResetTokens := postgres.NewPasswordResetTokenRepository(db)
 	events := postgres.NewEventRepository(db)
 	guests := postgres.NewGuestRepository(db)
 	rsvps := postgres.NewRSVPRepository(db)
 	gifts := postgres.NewGiftRepository(db)
 	giftTransactions := postgres.NewGiftTransactionRepository(db)
 
-	authService := services.NewAuthService(users, jwtManager)
+	passwordResetSender := buildPasswordResetSender(cfg)
+	authService := services.NewAuthService(
+		users,
+		passwordResetTokens,
+		jwtManager,
+		cfg.PasswordResetTTL,
+		cfg.PasswordResetURL,
+		passwordResetSender,
+	)
 	eventService := services.NewEventService(events)
 	guestService := services.NewGuestService(events, guests)
 	rsvpService := services.NewRSVPService(events, guests, rsvps)
@@ -105,4 +115,13 @@ func defaultStorageRegion(region string) string {
 		return "auto"
 	}
 	return region
+}
+
+func buildPasswordResetSender(cfg config.Config) mailer.PasswordResetSender {
+	if !cfg.UseBrevoEmail() {
+		log.Print("password reset emails disabled: configure BREVO_API_KEY and BREVO_SENDER_EMAIL to enable Brevo")
+		return mailer.NoopSender{}
+	}
+
+	return mailer.NewBrevoSender(cfg.BrevoAPIKey, cfg.BrevoSenderEmail, cfg.BrevoSenderName, nil)
 }

@@ -2,17 +2,20 @@ package routes
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"myevent-back/internal/auth"
 	"myevent-back/internal/config"
+	"myevent-back/internal/mailer"
 	"myevent-back/internal/repositories/memory"
 	"myevent-back/internal/services"
 	"myevent-back/internal/storage"
@@ -629,7 +632,7 @@ func TestPhaseFourFlow(t *testing.T) {
 }
 
 func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
-	router := newTestRouter(t)
+	router, passwordResetSender := newTestRouterWithDeps(t)
 
 	invalidRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":     "Kaleb",
@@ -723,6 +726,51 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 	if forgotPasswordPayload.Message == "" {
 		t.Fatal("expected forgot password message")
 	}
+	if len(passwordResetSender.messages) != 1 {
+		t.Fatalf("expected 1 password reset email, got %d", len(passwordResetSender.messages))
+	}
+
+	resetURL, err := url.Parse(passwordResetSender.messages[0].ResetURL)
+	if err != nil {
+		t.Fatalf("parse reset url: %v", err)
+	}
+
+	resetToken := resetURL.Query().Get("token")
+	if resetToken == "" {
+		t.Fatal("expected reset token in reset URL")
+	}
+
+	resetPasswordResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/reset-password", "", map[string]any{
+		"token":    resetToken,
+		"password": "87654321",
+	})
+	if resetPasswordResponse.Code != http.StatusOK {
+		t.Fatalf("expected reset password status 200, got %d", resetPasswordResponse.Code)
+	}
+
+	reuseResetResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/reset-password", "", map[string]any{
+		"token":    resetToken,
+		"password": "11223344",
+	})
+	if reuseResetResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected reused reset token status 400, got %d", reuseResetResponse.Code)
+	}
+
+	oldPasswordLoginResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/login", "", map[string]any{
+		"email":    "kaleb-auth@example.com",
+		"password": "12345678",
+	})
+	if oldPasswordLoginResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("expected old password login to fail, got %d", oldPasswordLoginResponse.Code)
+	}
+
+	newPasswordLoginResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/login", "", map[string]any{
+		"email":    "kaleb-auth@example.com",
+		"password": "87654321",
+	})
+	if newPasswordLoginResponse.Code != http.StatusOK {
+		t.Fatalf("expected login with new password to succeed, got %d", newPasswordLoginResponse.Code)
+	}
 }
 
 func TestCreateEventRejectsPastDate(t *testing.T) {
@@ -763,6 +811,11 @@ func TestCreateEventRejectsPastDate(t *testing.T) {
 }
 
 func newTestRouter(t *testing.T) http.Handler {
+	router, _ := newTestRouterWithDeps(t)
+	return router
+}
+
+func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSender) {
 	t.Helper()
 
 	uploadDir := t.TempDir()
@@ -786,8 +839,16 @@ func newTestRouter(t *testing.T) http.Handler {
 
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiresIn)
 	store := memory.NewStore()
+	passwordResetSender := &capturePasswordResetSender{}
 
-	authService := services.NewAuthService(store.Users(), jwtManager)
+	authService := services.NewAuthService(
+		store.Users(),
+		store.PasswordResetTokens(),
+		jwtManager,
+		time.Hour,
+		"http://localhost:3000/redefinir-senha",
+		passwordResetSender,
+	)
 	eventService := services.NewEventService(store.Events())
 	guestService := services.NewGuestService(store.Events(), store.Guests())
 	rsvpService := services.NewRSVPService(store.Events(), store.Guests(), store.RSVPs())
@@ -797,7 +858,7 @@ func newTestRouter(t *testing.T) http.Handler {
 	dashboardService := services.NewDashboardService(store.Events(), store.Guests(), store.Gifts())
 	uploadService := services.NewUploadService(localStorage, cfg.UploadMaxSizeBytes)
 
-	return NewRouter(cfg, nil, localStorage, jwtManager, authService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService)
+	return NewRouter(cfg, nil, localStorage, jwtManager, authService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService), passwordResetSender
 }
 
 func performJSONRequest(t *testing.T, router http.Handler, method, path, token string, body any) *httptest.ResponseRecorder {
@@ -877,4 +938,13 @@ var samplePNG = []byte{
 	0x00, 0x03, 0x01, 0x01, 0x00, 0xc9, 0xfe, 0x92,
 	0xef, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e,
 	0x44, 0xae, 0x42, 0x60, 0x82,
+}
+
+type capturePasswordResetSender struct {
+	messages []mailer.PasswordResetMessage
+}
+
+func (s *capturePasswordResetSender) SendPasswordReset(_ context.Context, message mailer.PasswordResetMessage) error {
+	s.messages = append(s.messages, message)
+	return nil
 }

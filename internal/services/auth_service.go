@@ -10,19 +10,39 @@ import (
 	"github.com/google/uuid"
 
 	"myevent-back/internal/auth"
+	"myevent-back/internal/mailer"
 	"myevent-back/internal/models"
 	"myevent-back/internal/repositories"
 )
 
 type AuthService struct {
-	users repositories.UserRepository
-	jwt   *auth.JWTManager
+	users               repositories.UserRepository
+	passwordResetTokens repositories.PasswordResetTokenRepository
+	jwt                 *auth.JWTManager
+	passwordResetTTL    time.Duration
+	passwordResetURL    string
+	passwordResetSender mailer.PasswordResetSender
 }
 
-func NewAuthService(users repositories.UserRepository, jwt *auth.JWTManager) *AuthService {
+func NewAuthService(
+	users repositories.UserRepository,
+	passwordResetTokens repositories.PasswordResetTokenRepository,
+	jwt *auth.JWTManager,
+	passwordResetTTL time.Duration,
+	passwordResetURL string,
+	passwordResetSender mailer.PasswordResetSender,
+) *AuthService {
+	if passwordResetSender == nil {
+		passwordResetSender = mailer.NoopSender{}
+	}
+
 	return &AuthService{
-		users: users,
-		jwt:   jwt,
+		users:               users,
+		passwordResetTokens: passwordResetTokens,
+		jwt:                 jwt,
+		passwordResetTTL:    passwordResetTTL,
+		passwordResetURL:    passwordResetURL,
+		passwordResetSender: passwordResetSender,
 	}
 }
 
@@ -41,12 +61,8 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	if err := validateEmail(email); err != nil {
 		return nil, "", err
 	}
-	if len(password) < 8 {
-		return nil, "", NewValidationError(
-			"A senha deve ter pelo menos 8 caracteres.",
-			"auth_password_too_short",
-			FieldError{Field: "password", Message: "A senha deve ter pelo menos 8 caracteres."},
-		)
+	if err := validatePassword(password); err != nil {
+		return nil, "", err
 	}
 
 	passwordHash, err := auth.HashPassword(password)
@@ -124,16 +140,6 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (*model
 	return user, token, nil
 }
 
-func (s *AuthService) ForgotPassword(_ context.Context, email string) (string, error) {
-	email = normalizeEmail(email)
-
-	if err := validateEmail(email); err != nil {
-		return "", err
-	}
-
-	return "Se o e-mail existir, enviaremos as instrucoes para recuperar sua senha.", nil
-}
-
 func (s *AuthService) Me(ctx context.Context, userID string) (*models.User, error) {
 	userID = strings.TrimSpace(userID)
 	if userID == "" {
@@ -172,6 +178,18 @@ func validateEmail(email string) error {
 			FieldError{Field: "email", Message: "Informe um e-mail valido."},
 		)
 	}
+	return nil
+}
+
+func validatePassword(password string) error {
+	if len(strings.TrimSpace(password)) < 8 {
+		return NewValidationError(
+			"A senha deve ter pelo menos 8 caracteres.",
+			"auth_password_too_short",
+			FieldError{Field: "password", Message: "A senha deve ter pelo menos 8 caracteres."},
+		)
+	}
+
 	return nil
 }
 
