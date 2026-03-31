@@ -23,6 +23,7 @@ type Event struct {
 	PixKey          string    `json:"pix_key"`
 	PixHolderName   string    `json:"pix_holder_name"`
 	Status          string    `json:"status"`
+	OpenRSVP        bool      `json:"open_rsvp"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 }

@@ -12,6 +12,7 @@ import (
 	"myevent-back/internal/dto"
 	"myevent-back/internal/models"
 	"myevent-back/internal/repositories"
+	"myevent-back/internal/utils"
 )
 
 type RSVPDetails struct {
@@ -51,16 +52,25 @@ func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.C
 		return nil, fmt.Errorf("%w: guest_identifier is required", ErrValidation)
 	}
 
-	guest, err := s.guests.GetByInviteCode(ctx, guestIdentifier)
-	if err != nil {
-		if errors.Is(err, repositories.ErrNotFound) {
+	var guest *models.Guest
+
+	if event.OpenRSVP {
+		guest, err = s.findOrCreateOpenRSVPGuest(ctx, event.ID, guestIdentifier)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		guest, err = s.guests.GetByInviteCode(ctx, guestIdentifier)
+		if err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return nil, ErrNotFound
+			}
+			return nil, err
+		}
+
+		if guest.EventID != event.ID {
 			return nil, ErrNotFound
 		}
-		return nil, err
-	}
-
-	if guest.EventID != event.ID {
-		return nil, ErrNotFound
 	}
 
 	status, companionsCount, err := validateRSVPInput(input.Status, input.CompanionsCount, guest.MaxCompanions)
@@ -146,6 +156,53 @@ func (s *RSVPService) ensureEventOwnership(ctx context.Context, userID, eventID 
 	}
 
 	return event, nil
+}
+
+// findOrCreateOpenRSVPGuest looks up a guest by name for an open-RSVP event.
+// If no guest with that exact name (case-insensitive) exists yet, one is created on the spot.
+func (s *RSVPService) findOrCreateOpenRSVPGuest(ctx context.Context, eventID, name string) (*models.Guest, error) {
+	guests, err := s.guests.ListByEventID(ctx, eventID)
+	if err != nil {
+		return nil, err
+	}
+
+	nameLower := strings.ToLower(name)
+	for _, g := range guests {
+		if strings.ToLower(g.Name) == nameLower {
+			return g, nil
+		}
+	}
+
+	// Guest not found — create automatically
+	now := time.Now().UTC()
+	var created *models.Guest
+
+	for attempt := 0; attempt < 5; attempt++ {
+		guest := &models.Guest{
+			ID:            uuid.NewString(),
+			EventID:       eventID,
+			Name:          name,
+			InviteCode:    utils.RandomUpperString(8),
+			QRCodeToken:   utils.RandomString(32),
+			MaxCompanions: 10,
+			RSVPStatus:    "pending",
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+
+		if err := s.guests.Create(ctx, guest); err == nil {
+			created = guest
+			break
+		} else if !errors.Is(err, repositories.ErrConflict) {
+			return nil, err
+		}
+	}
+
+	if created == nil {
+		return nil, fmt.Errorf("%w: could not allocate guest identifiers", ErrConflict)
+	}
+
+	return created, nil
 }
 
 func validateRSVPInput(status string, companionsCount, maxCompanions int) (string, int, error) {

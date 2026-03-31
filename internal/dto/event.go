@@ -20,6 +20,7 @@ type CreateEventRequest struct {
 	TextColor       string `json:"text_color"`
 	PixKey          string `json:"pix_key"`
 	PixHolderName   string `json:"pix_holder_name"`
+	OpenRSVP        bool   `json:"open_rsvp"`
 }
 
 type UpdateEventRequest struct {
@@ -40,6 +41,7 @@ type UpdateEventRequest struct {
 	TextColor       *string `json:"text_color"`
 	PixKey          *string `json:"pix_key"`
 	PixHolderName   *string `json:"pix_holder_name"`
+	OpenRSVP        *bool   `json:"open_rsvp"`
 }
 
 type UpdateEventStatusRequest struct {
@@ -67,6 +69,7 @@ type EventResponse struct {
 	PixKey          string `json:"pix_key,omitempty"`
 	PixHolderName   string `json:"pix_holder_name,omitempty"`
 	Status          string `json:"status"`
+	OpenRSVP        bool   `json:"open_rsvp"`
 }
 
 type PublicEventResponse struct {
@@ -89,6 +92,7 @@ type PublicEventResponse struct {
 	PixKey          string `json:"pix_key,omitempty"`
 	PixHolderName   string `json:"pix_holder_name,omitempty"`
 	Status          string `json:"status"`
+	OpenRSVP        bool   `json:"open_rsvp"`
 }
 
 func NewEventResponse(event *models.Event) EventResponse {
@@ -113,6 +117,7 @@ func NewEventResponse(event *models.Event) EventResponse {
 		PixKey:          event.PixKey,
 		PixHolderName:   event.PixHolderName,
 		Status:          event.Status,
+		OpenRSVP:        event.OpenRSVP,
 	}
 }
 
@@ -137,5 +142,6 @@ func NewPublicEventResponse(event *models.Event) PublicEventResponse {
 		PixKey:          event.PixKey,
 		PixHolderName:   event.PixHolderName,
 		Status:          event.Status,
+		OpenRSVP:        event.OpenRSVP,
 	}
 }

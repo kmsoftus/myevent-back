@@ -69,6 +69,7 @@ func (s *EventService) Create(ctx context.Context, userID string, input dto.Crea
 		PixKey:          strings.TrimSpace(input.PixKey),
 		PixHolderName:   strings.TrimSpace(input.PixHolderName),
 		Status:          "draft",
+		OpenRSVP:        input.OpenRSVP,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
@@ -162,6 +163,9 @@ func (s *EventService) Update(ctx context.Context, userID, eventID string, input
 	event.TextColor = strings.TrimSpace(nextTextColor)
 	event.PixKey = strings.TrimSpace(coalesceString(input.PixKey, event.PixKey))
 	event.PixHolderName = strings.TrimSpace(coalesceString(input.PixHolderName, event.PixHolderName))
+	if input.OpenRSVP != nil {
+		event.OpenRSVP = *input.OpenRSVP
+	}
 	event.UpdatedAt = time.Now().UTC()
 
 	if err := s.events.Update(ctx, event); err != nil {
