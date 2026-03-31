@@ -39,6 +39,7 @@ Preencha estas variaveis para habilitar o envio de e-mails pela Brevo:
 BREVO_API_KEY=
 BREVO_SENDER_EMAIL=
 BREVO_SENDER_NAME=MyEvent
+EMAIL_LOGO_URL=http://localhost:3000/brand/myevent-social-avatar.png
 PASSWORD_RESET_URL=http://localhost:3000/redefinir-senha
 PASSWORD_RESET_TTL=1h
 ```

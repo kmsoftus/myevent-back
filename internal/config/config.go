@@ -12,6 +12,7 @@ type Config struct {
 	AppPort            string
 	AppBaseURL         string
 	FrontendURL        string
+	EmailLogoURL       string
 	PasswordResetURL   string
 	JWTSecret          string
 	JWTExpiresIn       time.Duration
@@ -40,6 +41,7 @@ func Load() Config {
 		AppPort:            getEnv("APP_PORT", "8080"),
 		AppBaseURL:         getEnv("APP_BASE_URL", "http://localhost:8080"),
 		FrontendURL:        frontendURL,
+		EmailLogoURL:       getEnv("EMAIL_LOGO_URL", strings.TrimRight(frontendURL, "/")+"/brand/myevent-social-avatar.png"),
 		PasswordResetURL:   getEnv("PASSWORD_RESET_URL", strings.TrimRight(frontendURL, "/")+"/redefinir-senha"),
 		JWTSecret:          getEnv("JWT_SECRET", "super-secret"),
 		JWTExpiresIn:       getDurationEnv("JWT_EXPIRES_IN", 168*time.Hour),

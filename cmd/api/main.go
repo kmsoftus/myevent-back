@@ -123,5 +123,11 @@ func buildPasswordResetSender(cfg config.Config) mailer.PasswordResetSender {
 		return mailer.NoopSender{}
 	}
 
-	return mailer.NewBrevoSender(cfg.BrevoAPIKey, cfg.BrevoSenderEmail, cfg.BrevoSenderName, nil)
+	return mailer.NewBrevoSender(mailer.BrevoSenderOptions{
+		APIKey:      cfg.BrevoAPIKey,
+		AppName:     "MyEvent",
+		LogoURL:     cfg.EmailLogoURL,
+		SenderEmail: cfg.BrevoSenderEmail,
+		SenderName:  cfg.BrevoSenderName,
+	})
 }
