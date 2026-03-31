@@ -86,6 +86,8 @@ type PublicEventResponse struct {
 	SecondaryColor  string `json:"secondary_color"`
 	BackgroundColor string `json:"background_color"`
 	TextColor       string `json:"text_color"`
+	PixKey          string `json:"pix_key,omitempty"`
+	PixHolderName   string `json:"pix_holder_name,omitempty"`
 	Status          string `json:"status"`
 }
 
@@ -132,6 +134,8 @@ func NewPublicEventResponse(event *models.Event) PublicEventResponse {
 		SecondaryColor:  event.SecondaryColor,
 		BackgroundColor: event.BackgroundColor,
 		TextColor:       event.TextColor,
+		PixKey:          event.PixKey,
+		PixHolderName:   event.PixHolderName,
 		Status:          event.Status,
 	}
 }

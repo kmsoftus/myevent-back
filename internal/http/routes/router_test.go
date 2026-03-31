@@ -72,7 +72,9 @@ func TestPhaseOneFlow(t *testing.T) {
 	}
 
 	updateEventResponse := performJSONRequest(t, router, http.MethodPatch, "/v1/events/"+eventPayload.ID, authPayload.Token, map[string]any{
-		"description": "Nosso grande dia",
+		"description":     "Nosso grande dia",
+		"pix_key":         "ana.pix@example.com",
+		"pix_holder_name": "Ana Silva",
 	})
 	if updateEventResponse.Code != http.StatusOK {
 		t.Fatalf("expected update event status 200, got %d", updateEventResponse.Code)
@@ -88,6 +90,15 @@ func TestPhaseOneFlow(t *testing.T) {
 	publicEventResponse := performJSONRequest(t, router, http.MethodGet, "/v1/public/events/"+eventPayload.Slug, "", nil)
 	if publicEventResponse.Code != http.StatusOK {
 		t.Fatalf("expected public event status 200, got %d", publicEventResponse.Code)
+	}
+
+	var publicEventPayload struct {
+		PixKey        string `json:"pix_key"`
+		PixHolderName string `json:"pix_holder_name"`
+	}
+	decodeBody(t, publicEventResponse, &publicEventPayload)
+	if publicEventPayload.PixKey != "ana.pix@example.com" || publicEventPayload.PixHolderName != "Ana Silva" {
+		t.Fatalf("expected public event pix data, got %+v", publicEventPayload)
 	}
 
 	createGuestBody := map[string]any{
@@ -711,6 +722,43 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 	decodeBody(t, forgotPasswordResponse, &forgotPasswordPayload)
 	if forgotPasswordPayload.Message == "" {
 		t.Fatal("expected forgot password message")
+	}
+}
+
+func TestCreateEventRejectsPastDate(t *testing.T) {
+	router := newTestRouter(t)
+
+	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+		"name":     "Kaleb",
+		"email":    "kaleb-past-date@example.com",
+		"password": "12345678",
+	})
+	if registerResponse.Code != http.StatusCreated {
+		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
+	}
+
+	var authPayload struct {
+		Token string `json:"token"`
+	}
+	decodeBody(t, registerResponse, &authPayload)
+
+	yesterday := time.Now().In(time.FixedZone("America/Sao_Paulo", -3*60*60)).AddDate(0, 0, -1).Format("2006-01-02")
+	createEventResponse := performJSONRequest(t, router, http.MethodPost, "/v1/events", authPayload.Token, map[string]any{
+		"title":         "Evento no passado",
+		"slug":          "evento-no-passado",
+		"date":          yesterday,
+		"location_name": "Salao Antigo",
+	})
+	if createEventResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected create event status 400 for past date, got %d", createEventResponse.Code)
+	}
+
+	var payload struct {
+		Message string `json:"message"`
+	}
+	decodeBody(t, createEventResponse, &payload)
+	if payload.Message != "A data do evento nao pode ser anterior a hoje." {
+		t.Fatalf("expected past date message, got %q", payload.Message)
 	}
 }
 

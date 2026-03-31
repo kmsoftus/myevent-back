@@ -17,6 +17,7 @@ import (
 )
 
 var hexColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+var saoPauloLocation = time.FixedZone("America/Sao_Paulo", -3*60*60)
 
 type EventService struct {
 	events repositories.EventRepository
@@ -32,6 +33,7 @@ func (s *EventService) Create(ctx context.Context, userID string, input dto.Crea
 		input.Title,
 		input.Slug,
 		input.Date,
+		"",
 		input.Time,
 		theme,
 		input.PrimaryColor,
@@ -130,6 +132,7 @@ func (s *EventService) Update(ctx context.Context, userID, eventID string, input
 		nextTitle,
 		nextSlug,
 		nextDate,
+		event.Date,
 		nextTime,
 		nextTheme,
 		nextPrimaryColor,
@@ -224,7 +227,7 @@ func (s *EventService) GetPublishedBySlug(ctx context.Context, slug string) (*mo
 	return event, nil
 }
 
-func (s *EventService) validateAndNormalizePayload(title, slug, date, hour, theme, primaryColor, secondaryColor, backgroundColor, textColor, coverImageURL string) (string, error) {
+func (s *EventService) validateAndNormalizePayload(title, slug, date, previousDate, hour, theme, primaryColor, secondaryColor, backgroundColor, textColor, coverImageURL string) (string, error) {
 	if strings.TrimSpace(title) == "" {
 		return "", fmt.Errorf("%w: title is required", ErrValidation)
 	}
@@ -239,8 +242,14 @@ func (s *EventService) validateAndNormalizePayload(title, slug, date, hour, them
 
 	date = strings.TrimSpace(date)
 	if date != "" {
-		if _, err := time.Parse("2006-01-02", date); err != nil {
+		parsedDate, err := time.ParseInLocation("2006-01-02", date, saoPauloLocation)
+		if err != nil {
 			return "", fmt.Errorf("%w: date must use YYYY-MM-DD", ErrValidation)
+		}
+
+		today := startOfDayInLocation(time.Now(), saoPauloLocation)
+		if parsedDate.Before(today) && strings.TrimSpace(previousDate) != date {
+			return "", fmt.Errorf("%w: A data do evento nao pode ser anterior a hoje.", ErrValidation)
 		}
 	}
 
@@ -331,6 +340,11 @@ func defaultString(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func startOfDayInLocation(now time.Time, location *time.Location) time.Time {
+	current := now.In(location)
+	return time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, location)
 }
 
 func coalesceString(value *string, fallback string) string {
