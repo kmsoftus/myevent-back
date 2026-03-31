@@ -43,3 +43,12 @@ EMAIL_LOGO_URL=http://localhost:3000/brand/myevent-social-avatar.png
 PASSWORD_RESET_URL=http://localhost:3000/redefinir-senha
 PASSWORD_RESET_TTL=1h
 ```
+
+## Variaveis para notificacao no Telegram
+
+Preencha estas variaveis para avisar em um grupo quando houver novo cadastro:
+
+```bash
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_GROUP_ID=
+```

@@ -6,6 +6,7 @@ import (
 	"myevent-back/internal/dto"
 	apphttp "myevent-back/internal/http"
 	"myevent-back/internal/http/middleware"
+	"myevent-back/internal/models"
 	"myevent-back/internal/services"
 )
 
@@ -27,7 +28,13 @@ func (h *AuthHandler) Register(w nethttp.ResponseWriter, r *nethttp.Request) {
 		return
 	}
 
-	user, token, err := h.service.Register(r.Context(), request.Name, request.Email, request.Password)
+	user, token, err := h.service.Register(r.Context(), request.Name, request.Email, request.Password, models.UserAttribution{
+		UTMSource:   request.UTMSource,
+		UTMMedium:   request.UTMMedium,
+		UTMCampaign: request.UTMCampaign,
+		UTMTerm:     request.UTMTerm,
+		UTMContent:  request.UTMContent,
+	})
 	if err != nil {
 		apphttp.MapError(w, err)
 		return

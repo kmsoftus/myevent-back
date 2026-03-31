@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log"
 	"net/mail"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"myevent-back/internal/auth"
 	"myevent-back/internal/mailer"
 	"myevent-back/internal/models"
+	"myevent-back/internal/notifier"
 	"myevent-back/internal/repositories"
 )
 
@@ -22,6 +24,7 @@ type AuthService struct {
 	passwordResetTTL    time.Duration
 	passwordResetURL    string
 	passwordResetSender mailer.PasswordResetSender
+	registrationSender  notifier.RegistrationSender
 }
 
 func NewAuthService(
@@ -31,9 +34,13 @@ func NewAuthService(
 	passwordResetTTL time.Duration,
 	passwordResetURL string,
 	passwordResetSender mailer.PasswordResetSender,
+	registrationSender notifier.RegistrationSender,
 ) *AuthService {
 	if passwordResetSender == nil {
 		passwordResetSender = mailer.NoopSender{}
+	}
+	if registrationSender == nil {
+		registrationSender = notifier.NoopRegistrationSender{}
 	}
 
 	return &AuthService{
@@ -43,13 +50,15 @@ func NewAuthService(
 		passwordResetTTL:    passwordResetTTL,
 		passwordResetURL:    passwordResetURL,
 		passwordResetSender: passwordResetSender,
+		registrationSender:  registrationSender,
 	}
 }
 
-func (s *AuthService) Register(ctx context.Context, name, email, password string) (*models.User, string, error) {
+func (s *AuthService) Register(ctx context.Context, name, email, password string, attribution models.UserAttribution) (*models.User, string, error) {
 	name = strings.TrimSpace(name)
 	email = normalizeEmail(email)
 	password = strings.TrimSpace(password)
+	attribution = normalizeUserAttribution(attribution)
 
 	if name == "" {
 		return nil, "", NewValidationError(
@@ -76,6 +85,7 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 		Name:         name,
 		Email:        email,
 		PasswordHash: passwordHash,
+		Attribution:  attribution,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	}
@@ -94,6 +104,16 @@ func (s *AuthService) Register(ctx context.Context, name, email, password string
 	token, err := s.jwt.GenerateToken(user.ID)
 	if err != nil {
 		return nil, "", err
+	}
+
+	if err := s.registrationSender.SendNewRegistration(ctx, notifier.NewRegistrationMessage{
+		UserID:      user.ID,
+		Name:        user.Name,
+		Email:       user.Email,
+		Attribution: user.Attribution,
+		CreatedAt:   user.CreatedAt,
+	}); err != nil {
+		log.Printf("telegram registration notification failed for user %s: %v", user.ID, err)
 	}
 
 	return user, token, nil
@@ -195,4 +215,14 @@ func validatePassword(password string) error {
 
 func normalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
+}
+
+func normalizeUserAttribution(attribution models.UserAttribution) models.UserAttribution {
+	return models.UserAttribution{
+		UTMSource:   strings.TrimSpace(attribution.UTMSource),
+		UTMMedium:   strings.TrimSpace(attribution.UTMMedium),
+		UTMCampaign: strings.TrimSpace(attribution.UTMCampaign),
+		UTMTerm:     strings.TrimSpace(attribution.UTMTerm),
+		UTMContent:  strings.TrimSpace(attribution.UTMContent),
+	}
 }

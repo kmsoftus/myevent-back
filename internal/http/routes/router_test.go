@@ -18,6 +18,7 @@ import (
 	"myevent-back/internal/auth"
 	"myevent-back/internal/config"
 	"myevent-back/internal/mailer"
+	"myevent-back/internal/notifier"
 	"myevent-back/internal/repositories/memory"
 	"myevent-back/internal/services"
 	"myevent-back/internal/storage"
@@ -634,7 +635,7 @@ func TestPhaseFourFlow(t *testing.T) {
 }
 
 func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
-	router, passwordResetSender, _ := newTestRouterWithDeps(t)
+	router, passwordResetSender, _, _, _ := newTestRouterWithDeps(t)
 
 	invalidRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":     "Kaleb",
@@ -775,6 +776,51 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 	}
 }
 
+func TestRegisterSendsTelegramNotification(t *testing.T) {
+	router, _, registrationSender, store, _ := newTestRouterWithDeps(t)
+
+	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+		"name":         "Kaleb",
+		"email":        "kaleb-telegram@example.com",
+		"password":     "12345678",
+		"utm_source":   "google",
+		"utm_medium":   "cpc",
+		"utm_campaign": "casamento-2026",
+	})
+	if registerResponse.Code != http.StatusCreated {
+		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
+	}
+
+	if len(registrationSender.messages) != 1 {
+		t.Fatalf("expected 1 registration notification, got %d", len(registrationSender.messages))
+	}
+
+	message := registrationSender.messages[0]
+	if message.Name != "Kaleb" {
+		t.Fatalf("expected registration name Kaleb, got %q", message.Name)
+	}
+	if message.Email != "kaleb-telegram@example.com" {
+		t.Fatalf("expected registration email to match, got %q", message.Email)
+	}
+	if message.UserID == "" {
+		t.Fatal("expected registration notification to include user ID")
+	}
+	if message.CreatedAt.IsZero() {
+		t.Fatal("expected registration notification to include created_at")
+	}
+	if message.Attribution.UTMSource != "google" || message.Attribution.UTMMedium != "cpc" || message.Attribution.UTMCampaign != "casamento-2026" {
+		t.Fatalf("expected registration notification attribution, got %+v", message.Attribution)
+	}
+
+	user, err := store.Users().GetByEmail(context.Background(), "kaleb-telegram@example.com")
+	if err != nil {
+		t.Fatalf("load saved user: %v", err)
+	}
+	if user.Attribution.UTMSource != "google" || user.Attribution.UTMMedium != "cpc" || user.Attribution.UTMCampaign != "casamento-2026" {
+		t.Fatalf("expected saved user attribution, got %+v", user.Attribution)
+	}
+}
+
 func TestCreateEventRejectsPastDate(t *testing.T) {
 	router := newTestRouter(t)
 
@@ -813,7 +859,7 @@ func TestCreateEventRejectsPastDate(t *testing.T) {
 }
 
 func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
-	router, _, uploadDir := newTestRouterWithDeps(t)
+	router, _, _, _, uploadDir := newTestRouterWithDeps(t)
 
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":     "Kaleb",
@@ -891,11 +937,11 @@ func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
 }
 
 func newTestRouter(t *testing.T) http.Handler {
-	router, _, _ := newTestRouterWithDeps(t)
+	router, _, _, _, _ := newTestRouterWithDeps(t)
 	return router
 }
 
-func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSender, string) {
+func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSender, *captureRegistrationSender, *memory.Store, string) {
 	t.Helper()
 
 	uploadDir := t.TempDir()
@@ -920,6 +966,7 @@ func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSen
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTExpiresIn)
 	store := memory.NewStore()
 	passwordResetSender := &capturePasswordResetSender{}
+	registrationSender := &captureRegistrationSender{}
 
 	authService := services.NewAuthService(
 		store.Users(),
@@ -928,6 +975,7 @@ func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSen
 		time.Hour,
 		"http://localhost:3000/redefinir-senha",
 		passwordResetSender,
+		registrationSender,
 	)
 	eventService := services.NewEventService(store.Events())
 	guestService := services.NewGuestService(store.Events(), store.Guests())
@@ -939,7 +987,7 @@ func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSen
 	uploadService := services.NewUploadService(localStorage, cfg.UploadMaxSizeBytes)
 	accountService := services.NewAccountService(store.Users(), store.Events(), store.Gifts(), uploadService)
 
-	return NewRouter(cfg, nil, localStorage, jwtManager, authService, accountService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService), passwordResetSender, uploadDir
+	return NewRouter(cfg, nil, localStorage, jwtManager, authService, accountService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService), passwordResetSender, registrationSender, store, uploadDir
 }
 
 func performJSONRequest(t *testing.T, router http.Handler, method, path, token string, body any) *httptest.ResponseRecorder {
@@ -1026,6 +1074,15 @@ type capturePasswordResetSender struct {
 }
 
 func (s *capturePasswordResetSender) SendPasswordReset(_ context.Context, message mailer.PasswordResetMessage) error {
+	s.messages = append(s.messages, message)
+	return nil
+}
+
+type captureRegistrationSender struct {
+	messages []notifier.NewRegistrationMessage
+}
+
+func (s *captureRegistrationSender) SendNewRegistration(_ context.Context, message notifier.NewRegistrationMessage) error {
 	s.messages = append(s.messages, message)
 	return nil
 }

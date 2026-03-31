@@ -3,9 +3,14 @@ package dto
 import "myevent-back/internal/models"
 
 type RegisterRequest struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	UTMSource   string `json:"utm_source"`
+	UTMMedium   string `json:"utm_medium"`
+	UTMCampaign string `json:"utm_campaign"`
+	UTMTerm     string `json:"utm_term"`
+	UTMContent  string `json:"utm_content"`
 }
 
 type LoginRequest struct {

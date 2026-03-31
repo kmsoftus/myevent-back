@@ -13,6 +13,7 @@ import (
 	"myevent-back/internal/database"
 	"myevent-back/internal/http/routes"
 	"myevent-back/internal/mailer"
+	"myevent-back/internal/notifier"
 	"myevent-back/internal/repositories/postgres"
 	"myevent-back/internal/services"
 	"myevent-back/internal/storage"
@@ -50,6 +51,7 @@ func main() {
 	giftTransactions := postgres.NewGiftTransactionRepository(db)
 
 	passwordResetSender := buildPasswordResetSender(cfg)
+	registrationSender := buildRegistrationSender(cfg)
 	authService := services.NewAuthService(
 		users,
 		passwordResetTokens,
@@ -57,6 +59,7 @@ func main() {
 		cfg.PasswordResetTTL,
 		cfg.PasswordResetURL,
 		passwordResetSender,
+		registrationSender,
 	)
 	eventService := services.NewEventService(events)
 	guestService := services.NewGuestService(events, guests)
@@ -131,5 +134,18 @@ func buildPasswordResetSender(cfg config.Config) mailer.PasswordResetSender {
 		LogoURL:     cfg.EmailLogoURL,
 		SenderEmail: cfg.BrevoSenderEmail,
 		SenderName:  cfg.BrevoSenderName,
+	})
+}
+
+func buildRegistrationSender(cfg config.Config) notifier.RegistrationSender {
+	if !cfg.UseTelegramNotifications() {
+		log.Print("telegram registration notifications disabled: configure TELEGRAM_BOT_TOKEN and TELEGRAM_GROUP_ID to enable")
+		return notifier.NoopRegistrationSender{}
+	}
+
+	return notifier.NewTelegramSender(notifier.TelegramSenderOptions{
+		AppName:  "MyEvent",
+		BotToken: cfg.TelegramBotToken,
+		ChatID:   cfg.TelegramGroupID,
 	})
 }

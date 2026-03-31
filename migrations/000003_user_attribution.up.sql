@@ -1,0 +1,6 @@
+ALTER TABLE users
+    ADD COLUMN utm_source TEXT NOT NULL DEFAULT '',
+    ADD COLUMN utm_medium TEXT NOT NULL DEFAULT '',
+    ADD COLUMN utm_campaign TEXT NOT NULL DEFAULT '',
+    ADD COLUMN utm_term TEXT NOT NULL DEFAULT '',
+    ADD COLUMN utm_content TEXT NOT NULL DEFAULT '';

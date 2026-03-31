@@ -14,6 +14,8 @@ type Config struct {
 	FrontendURL        string
 	EmailLogoURL       string
 	PasswordResetURL   string
+	TelegramBotToken   string
+	TelegramGroupID    string
 	JWTSecret          string
 	JWTExpiresIn       time.Duration
 	DatabaseURL        string
@@ -43,6 +45,8 @@ func Load() Config {
 		FrontendURL:        frontendURL,
 		EmailLogoURL:       getEnv("EMAIL_LOGO_URL", strings.TrimRight(frontendURL, "/")+"/brand/myevent-social-avatar.png"),
 		PasswordResetURL:   getEnv("PASSWORD_RESET_URL", strings.TrimRight(frontendURL, "/")+"/redefinir-senha"),
+		TelegramBotToken:   getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramGroupID:    getEnv("TELEGRAM_GROUP_ID", ""),
 		JWTSecret:          getEnv("JWT_SECRET", "super-secret"),
 		JWTExpiresIn:       getDurationEnv("JWT_EXPIRES_IN", 168*time.Hour),
 		DatabaseURL:        getEnv("DATABASE_URL", ""),
@@ -74,6 +78,11 @@ func (c Config) UseR2Storage() bool {
 func (c Config) UseBrevoEmail() bool {
 	return strings.TrimSpace(c.BrevoAPIKey) != "" &&
 		strings.TrimSpace(c.BrevoSenderEmail) != ""
+}
+
+func (c Config) UseTelegramNotifications() bool {
+	return strings.TrimSpace(c.TelegramBotToken) != "" &&
+		strings.TrimSpace(c.TelegramGroupID) != ""
 }
 
 func getEnv(key, fallback string) string {
