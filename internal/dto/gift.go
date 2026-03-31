@@ -35,6 +35,14 @@ type GiftResponse struct {
 	AllowPix         bool   `json:"allow_pix"`
 }
 
+type PagedGiftsResponse struct {
+	Items      []GiftResponse `json:"items"`
+	Total      int            `json:"total"`
+	Page       int            `json:"page"`
+	PageSize   int            `json:"page_size"`
+	TotalPages int            `json:"total_pages"`
+}
+
 func NewGiftResponse(gift *models.Gift) GiftResponse {
 	return GiftResponse{
 		ID:               gift.ID,

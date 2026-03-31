@@ -2,6 +2,7 @@ package handlers
 
 import (
 	nethttp "net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -62,18 +63,27 @@ func (h *GiftHandler) List(w nethttp.ResponseWriter, r *nethttp.Request) {
 }
 
 func (h *GiftHandler) ListPublic(w nethttp.ResponseWriter, r *nethttp.Request) {
-	gifts, err := h.service.ListPublicBySlug(r.Context(), chi.URLParam(r, "slug"))
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+
+	paged, err := h.service.ListPublicBySlug(r.Context(), chi.URLParam(r, "slug"), page, pageSize)
 	if err != nil {
 		apphttp.MapError(w, err)
 		return
 	}
 
-	response := make([]dto.GiftResponse, 0, len(gifts))
-	for _, gift := range gifts {
-		response = append(response, dto.NewGiftResponse(gift))
+	items := make([]dto.GiftResponse, 0, len(paged.Gifts))
+	for _, gift := range paged.Gifts {
+		items = append(items, dto.NewGiftResponse(gift))
 	}
 
-	apphttp.WriteJSON(w, nethttp.StatusOK, response)
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.PagedGiftsResponse{
+		Items:      items,
+		Total:      paged.Total,
+		Page:       paged.Page,
+		PageSize:   paged.PageSize,
+		TotalPages: paged.TotalPages,
+	})
 }
 
 func (h *GiftHandler) GetByID(w nethttp.ResponseWriter, r *nethttp.Request) {

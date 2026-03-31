@@ -71,7 +71,15 @@ func (s *GiftService) ListByEvent(ctx context.Context, userID, eventID string) (
 	return s.gifts.ListByEventID(ctx, eventID)
 }
 
-func (s *GiftService) ListPublicBySlug(ctx context.Context, slug string) ([]*models.Gift, error) {
+type PagedGifts struct {
+	Gifts      []*models.Gift
+	Total      int
+	Page       int
+	PageSize   int
+	TotalPages int
+}
+
+func (s *GiftService) ListPublicBySlug(ctx context.Context, slug string, page, pageSize int) (*PagedGifts, error) {
 	event, err := s.events.GetBySlug(ctx, slug)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
@@ -83,7 +91,51 @@ func (s *GiftService) ListPublicBySlug(ctx context.Context, slug string) ([]*mod
 		return nil, ErrNotFound
 	}
 
-	return s.gifts.ListByEventID(ctx, event.ID)
+	total, err := s.gifts.CountByEventID(ctx, event.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// When no pagination params are given, return all gifts
+	if page < 1 && pageSize < 1 {
+		gifts, err := s.gifts.ListByEventID(ctx, event.ID)
+		if err != nil {
+			return nil, err
+		}
+		return &PagedGifts{
+			Gifts:      gifts,
+			Total:      total,
+			Page:       1,
+			PageSize:   total,
+			TotalPages: 1,
+		}, nil
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 12
+	}
+
+	totalPages := (total + pageSize - 1) / pageSize
+	if totalPages < 1 {
+		totalPages = 1
+	}
+
+	offset := (page - 1) * pageSize
+	gifts, err := s.gifts.ListByEventIDPaged(ctx, event.ID, pageSize, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PagedGifts{
+		Gifts:      gifts,
+		Total:      total,
+		Page:       page,
+		PageSize:   pageSize,
+		TotalPages: totalPages,
+	}, nil
 }
 
 func (s *GiftService) GetByID(ctx context.Context, userID, eventID, giftID string) (*models.Gift, error) {

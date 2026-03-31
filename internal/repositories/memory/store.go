@@ -576,6 +576,37 @@ func (r *giftRepository) ListByEventID(_ context.Context, eventID string) ([]*mo
 	return gifts, nil
 }
 
+func (r *giftRepository) CountByEventID(_ context.Context, eventID string) (int, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	return len(r.store.giftIDsByEvent[eventID]), nil
+}
+
+func (r *giftRepository) ListByEventIDPaged(_ context.Context, eventID string, limit, offset int) ([]*models.Gift, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	giftIDs := r.store.giftIDsByEvent[eventID]
+	gifts := make([]*models.Gift, 0, len(giftIDs))
+	for giftID := range giftIDs {
+		gifts = append(gifts, cloneGift(r.store.gifts[giftID]))
+	}
+
+	sort.Slice(gifts, func(i, j int) bool {
+		return gifts[i].CreatedAt.Before(gifts[j].CreatedAt)
+	})
+
+	if offset >= len(gifts) {
+		return []*models.Gift{}, nil
+	}
+	end := offset + limit
+	if end > len(gifts) {
+		end = len(gifts)
+	}
+	return gifts[offset:end], nil
+}
+
 func (r *giftRepository) GetByID(_ context.Context, id string) (*models.Gift, error) {
 	r.store.mu.RLock()
 	defer r.store.mu.RUnlock()

@@ -54,6 +54,8 @@ type RSVPRepository interface {
 type GiftRepository interface {
 	Create(ctx context.Context, gift *models.Gift) error
 	ListByEventID(ctx context.Context, eventID string) ([]*models.Gift, error)
+	CountByEventID(ctx context.Context, eventID string) (int, error)
+	ListByEventIDPaged(ctx context.Context, eventID string, limit, offset int) ([]*models.Gift, error)
 	GetByID(ctx context.Context, id string) (*models.Gift, error)
 	Update(ctx context.Context, gift *models.Gift) error
 	Delete(ctx context.Context, id string) error
