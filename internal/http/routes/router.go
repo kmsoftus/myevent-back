@@ -23,6 +23,7 @@ func NewRouter(
 	objectStorage storage.Provider,
 	jwtManager *auth.JWTManager,
 	authService *services.AuthService,
+	accountService *services.AccountService,
 	eventService *services.EventService,
 	guestService *services.GuestService,
 	rsvpService *services.RSVPService,
@@ -49,7 +50,7 @@ func NewRouter(
 	}))
 
 	healthHandler := handlers.NewHealthHandler(db, objectStorage)
-	authHandler := handlers.NewAuthHandler(authService)
+	authHandler := handlers.NewAuthHandler(authService, accountService)
 	eventHandler := handlers.NewEventHandler(eventService)
 	publicEventHandler := handlers.NewPublicEventHandler(eventService)
 	guestHandler := handlers.NewGuestHandler(guestService)
@@ -76,6 +77,7 @@ func NewRouter(
 			r.Group(func(r chi.Router) {
 				r.Use(authmiddleware.Authenticator(jwtManager))
 				r.Get("/me", authHandler.Me)
+				r.Delete("/me", authHandler.DeleteMe)
 			})
 		})
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	nethttp "net/http"
+	"net/url"
 	"path"
 	"strings"
 
@@ -32,6 +33,7 @@ var (
 
 type UploadService struct {
 	storage          storage.Provider
+	publicURL        string
 	maxFileSizeBytes int64
 }
 
@@ -42,6 +44,7 @@ func NewUploadService(storage storage.Provider, maxFileSizeBytes int64) *UploadS
 
 	return &UploadService{
 		storage:          storage,
+		publicURL:        strings.TrimRight(strings.TrimSpace(storage.PublicURL()), "/"),
 		maxFileSizeBytes: maxFileSizeBytes,
 	}
 }
@@ -94,6 +97,44 @@ func (s *UploadService) Delete(ctx context.Context, key string) error {
 	}
 
 	return s.storage.DeleteObject(ctx, key)
+}
+
+func (s *UploadService) ManagedKeyFromURL(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || s.publicURL == "" {
+		return "", false
+	}
+
+	publicURL, err := url.Parse(s.publicURL)
+	if err != nil {
+		return "", false
+	}
+
+	assetURL, err := url.Parse(raw)
+	if err != nil {
+		return "", false
+	}
+
+	if !strings.EqualFold(assetURL.Scheme, publicURL.Scheme) || !strings.EqualFold(assetURL.Host, publicURL.Host) {
+		return "", false
+	}
+
+	publicPath := strings.Trim(publicURL.Path, "/")
+	assetPath := strings.Trim(assetURL.Path, "/")
+	if publicPath != "" {
+		if assetPath == publicPath || !strings.HasPrefix(assetPath, publicPath+"/") {
+			return "", false
+		}
+
+		assetPath = strings.TrimPrefix(assetPath, publicPath+"/")
+	}
+
+	key, err := normalizeUploadKey(assetPath)
+	if err != nil {
+		return "", false
+	}
+
+	return key, true
 }
 
 func normalizeUploadFolder(folder string) (string, error) {

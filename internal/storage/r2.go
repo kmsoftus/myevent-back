@@ -71,6 +71,10 @@ func (s *R2Storage) DeleteObject(ctx context.Context, key string) error {
 	return err
 }
 
+func (s *R2Storage) PublicURL() string {
+	return s.publicURL
+}
+
 func normalizeR2PublicURL(publicURL, endpoint, bucket string) string {
 	publicURL = strings.TrimRight(strings.TrimSpace(publicURL), "/")
 	if publicURL == "" {

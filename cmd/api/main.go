@@ -71,6 +71,7 @@ func main() {
 		log.Fatal(err)
 	}
 	uploadService := services.NewUploadService(objectStorage, cfg.UploadMaxSizeBytes)
+	accountService := services.NewAccountService(users, events, gifts, uploadService)
 
 	router := routes.NewRouter(
 		cfg,
@@ -78,6 +79,7 @@ func main() {
 		objectStorage,
 		jwtManager,
 		authService,
+		accountService,
 		eventService,
 		guestService,
 		rsvpService,

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -632,7 +634,7 @@ func TestPhaseFourFlow(t *testing.T) {
 }
 
 func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
-	router, passwordResetSender := newTestRouterWithDeps(t)
+	router, passwordResetSender, _ := newTestRouterWithDeps(t)
 
 	invalidRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":     "Kaleb",
@@ -810,12 +812,90 @@ func TestCreateEventRejectsPastDate(t *testing.T) {
 	}
 }
 
+func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
+	router, _, uploadDir := newTestRouterWithDeps(t)
+
+	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+		"name":     "Kaleb",
+		"email":    "kaleb-delete@example.com",
+		"password": "12345678",
+	})
+	if registerResponse.Code != http.StatusCreated {
+		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
+	}
+
+	var authPayload struct {
+		Token string `json:"token"`
+	}
+	decodeBody(t, registerResponse, &authPayload)
+
+	uploadResponse := performMultipartRequest(t, router, "/v1/uploads", authPayload.Token, "events/covers", "cover.png", samplePNG)
+	if uploadResponse.Code != http.StatusCreated {
+		t.Fatalf("expected upload status 201, got %d", uploadResponse.Code)
+	}
+
+	var uploadPayload struct {
+		Key string `json:"key"`
+		URL string `json:"url"`
+	}
+	decodeBody(t, uploadResponse, &uploadPayload)
+
+	createEventResponse := performJSONRequest(t, router, http.MethodPost, "/v1/events", authPayload.Token, map[string]any{
+		"title":           "Evento para excluir",
+		"slug":            "evento-para-excluir",
+		"cover_image_url": uploadPayload.URL,
+	})
+	if createEventResponse.Code != http.StatusCreated {
+		t.Fatalf("expected create event status 201, got %d", createEventResponse.Code)
+	}
+
+	var eventPayload struct {
+		ID string `json:"id"`
+	}
+	decodeBody(t, createEventResponse, &eventPayload)
+
+	createGiftResponse := performJSONRequest(t, router, http.MethodPost, "/v1/events/"+eventPayload.ID+"/gifts", authPayload.Token, map[string]any{
+		"title":     "Presente com a mesma imagem",
+		"image_url": uploadPayload.URL,
+	})
+	if createGiftResponse.Code != http.StatusCreated {
+		t.Fatalf("expected create gift status 201, got %d", createGiftResponse.Code)
+	}
+
+	assetPath := filepath.Join(uploadDir, filepath.FromSlash(uploadPayload.Key))
+	if _, err := os.Stat(assetPath); err != nil {
+		t.Fatalf("expected uploaded asset to exist before account deletion: %v", err)
+	}
+
+	deleteAccountResponse := performJSONRequest(t, router, http.MethodDelete, "/v1/auth/me", authPayload.Token, nil)
+	if deleteAccountResponse.Code != http.StatusOK {
+		t.Fatalf("expected delete account status 200, got %d", deleteAccountResponse.Code)
+	}
+
+	if _, err := os.Stat(assetPath); !os.IsNotExist(err) {
+		t.Fatalf("expected managed upload to be deleted, got err=%v", err)
+	}
+
+	meResponse := performJSONRequest(t, router, http.MethodGet, "/v1/auth/me", authPayload.Token, nil)
+	if meResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("expected deleted account token to be rejected by /me, got %d", meResponse.Code)
+	}
+
+	loginResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/login", "", map[string]any{
+		"email":    "kaleb-delete@example.com",
+		"password": "12345678",
+	})
+	if loginResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("expected deleted account login to fail, got %d", loginResponse.Code)
+	}
+}
+
 func newTestRouter(t *testing.T) http.Handler {
-	router, _ := newTestRouterWithDeps(t)
+	router, _, _ := newTestRouterWithDeps(t)
 	return router
 }
 
-func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSender) {
+func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSender, string) {
 	t.Helper()
 
 	uploadDir := t.TempDir()
@@ -857,8 +937,9 @@ func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSen
 	giftTransactionService := services.NewGiftTransactionService(store.Events(), store.Gifts(), store.GiftTransactions())
 	dashboardService := services.NewDashboardService(store.Events(), store.Guests(), store.Gifts())
 	uploadService := services.NewUploadService(localStorage, cfg.UploadMaxSizeBytes)
+	accountService := services.NewAccountService(store.Users(), store.Events(), store.Gifts(), uploadService)
 
-	return NewRouter(cfg, nil, localStorage, jwtManager, authService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService), passwordResetSender
+	return NewRouter(cfg, nil, localStorage, jwtManager, authService, accountService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService), passwordResetSender, uploadDir
 }
 
 func performJSONRequest(t *testing.T, router http.Handler, method, path, token string, body any) *httptest.ResponseRecorder {

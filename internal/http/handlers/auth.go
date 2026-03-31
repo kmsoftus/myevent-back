@@ -10,11 +10,15 @@ import (
 )
 
 type AuthHandler struct {
-	service *services.AuthService
+	service        *services.AuthService
+	accountService *services.AccountService
 }
 
-func NewAuthHandler(service *services.AuthService) *AuthHandler {
-	return &AuthHandler{service: service}
+func NewAuthHandler(service *services.AuthService, accountService *services.AccountService) *AuthHandler {
+	return &AuthHandler{
+		service:        service,
+		accountService: accountService,
+	}
 }
 
 func (h *AuthHandler) Register(w nethttp.ResponseWriter, r *nethttp.Request) {
@@ -97,4 +101,25 @@ func (h *AuthHandler) Me(w nethttp.ResponseWriter, r *nethttp.Request) {
 	}
 
 	apphttp.WriteJSON(w, nethttp.StatusOK, dto.NewUserResponse(user))
+}
+
+func (h *AuthHandler) DeleteMe(w nethttp.ResponseWriter, r *nethttp.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		apphttp.WriteErrorResponse(
+			w,
+			nethttp.StatusUnauthorized,
+			"Sessao invalida. Faca login novamente.",
+			"auth_session_invalid",
+			nil,
+		)
+		return
+	}
+
+	if err := h.accountService.Delete(r.Context(), userID); err != nil {
+		apphttp.MapError(w, err)
+		return
+	}
+
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.MessageResponse{Message: "Conta excluida com sucesso."})
 }

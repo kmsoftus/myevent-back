@@ -63,6 +63,18 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 	return &u, nil
 }
 
+func (r *UserRepository) Delete(ctx context.Context, id string) error {
+	commandTag, err := r.db.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
+	if err != nil {
+		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		return repositories.ErrNotFound
+	}
+
+	return nil
+}
+
 func (r *UserRepository) UpdatePassword(ctx context.Context, id, passwordHash string, updatedAt time.Time) error {
 	commandTag, err := r.db.Exec(ctx,
 		`UPDATE users

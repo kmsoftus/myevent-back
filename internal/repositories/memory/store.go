@@ -133,6 +133,37 @@ func (r *userRepository) GetByEmail(_ context.Context, email string) (*models.Us
 	return cloneUser(r.store.users[id]), nil
 }
 
+func (r *userRepository) Delete(_ context.Context, id string) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	user, ok := r.store.users[id]
+	if !ok {
+		return repositories.ErrNotFound
+	}
+
+	delete(r.store.users, id)
+	delete(r.store.userByEmail, strings.ToLower(user.Email))
+
+	if tokenIDs, ok := r.store.passwordResetTokenIDsByUser[id]; ok {
+		for tokenID := range tokenIDs {
+			if token, exists := r.store.passwordResetTokens[tokenID]; exists {
+				delete(r.store.passwordResetTokenByHash, token.TokenHash)
+				delete(r.store.passwordResetTokens, tokenID)
+			}
+		}
+		delete(r.store.passwordResetTokenIDsByUser, id)
+	}
+
+	for eventID, event := range r.store.events {
+		if event.UserID == id {
+			r.store.deleteEventLocked(eventID)
+		}
+	}
+
+	return nil
+}
+
 func (r *userRepository) UpdatePassword(_ context.Context, id, passwordHash string, updatedAt time.Time) error {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
@@ -310,49 +341,7 @@ func (r *eventRepository) Delete(_ context.Context, id string) error {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 
-	event, ok := r.store.events[id]
-	if !ok {
-		return repositories.ErrNotFound
-	}
-
-	delete(r.store.events, id)
-	delete(r.store.eventBySlug, strings.ToLower(event.Slug))
-
-	if guestIDs, ok := r.store.guestIDsByEvent[id]; ok {
-		for guestID := range guestIDs {
-			guest := r.store.guests[guestID]
-			delete(r.store.guestByInvite, strings.ToUpper(strings.TrimSpace(guest.InviteCode)))
-			delete(r.store.guestByQRToken, guest.QRCodeToken)
-			delete(r.store.guests, guestID)
-			if rsvpID, ok := r.store.rsvpByGuest[guestID]; ok {
-				delete(r.store.rsvpByGuest, guestID)
-				delete(r.store.rsvps, rsvpID)
-				if rsvpIDs, ok := r.store.rsvpIDsByEvent[id]; ok {
-					delete(rsvpIDs, rsvpID)
-					if len(rsvpIDs) == 0 {
-						delete(r.store.rsvpIDsByEvent, id)
-					}
-				}
-			}
-		}
-		delete(r.store.guestIDsByEvent, id)
-	}
-
-	if giftIDs, ok := r.store.giftIDsByEvent[id]; ok {
-		for giftID := range giftIDs {
-			delete(r.store.gifts, giftID)
-		}
-		delete(r.store.giftIDsByEvent, id)
-	}
-
-	if transactionIDs, ok := r.store.giftTransactionIDsByEvent[id]; ok {
-		for transactionID := range transactionIDs {
-			delete(r.store.giftTransactions, transactionID)
-		}
-		delete(r.store.giftTransactionIDsByEvent, id)
-	}
-
-	return nil
+	return r.store.deleteEventLocked(id)
 }
 
 type guestRepository struct {
@@ -738,4 +727,50 @@ func clonePasswordResetToken(token *models.PasswordResetToken) *models.PasswordR
 		copy.UsedAt = &usedAt
 	}
 	return &copy
+}
+
+func (s *Store) deleteEventLocked(id string) error {
+	event, ok := s.events[id]
+	if !ok {
+		return repositories.ErrNotFound
+	}
+
+	delete(s.events, id)
+	delete(s.eventBySlug, strings.ToLower(event.Slug))
+
+	if guestIDs, ok := s.guestIDsByEvent[id]; ok {
+		for guestID := range guestIDs {
+			guest := s.guests[guestID]
+			delete(s.guestByInvite, strings.ToUpper(strings.TrimSpace(guest.InviteCode)))
+			delete(s.guestByQRToken, guest.QRCodeToken)
+			delete(s.guests, guestID)
+			if rsvpID, ok := s.rsvpByGuest[guestID]; ok {
+				delete(s.rsvpByGuest, guestID)
+				delete(s.rsvps, rsvpID)
+				if rsvpIDs, ok := s.rsvpIDsByEvent[id]; ok {
+					delete(rsvpIDs, rsvpID)
+					if len(rsvpIDs) == 0 {
+						delete(s.rsvpIDsByEvent, id)
+					}
+				}
+			}
+		}
+		delete(s.guestIDsByEvent, id)
+	}
+
+	if giftIDs, ok := s.giftIDsByEvent[id]; ok {
+		for giftID := range giftIDs {
+			delete(s.gifts, giftID)
+		}
+		delete(s.giftIDsByEvent, id)
+	}
+
+	if transactionIDs, ok := s.giftTransactionIDsByEvent[id]; ok {
+		for transactionID := range transactionIDs {
+			delete(s.giftTransactions, transactionID)
+		}
+		delete(s.giftTransactionIDsByEvent, id)
+	}
+
+	return nil
 }

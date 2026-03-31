@@ -54,6 +54,10 @@ func (s *LocalStorage) DeleteObject(_ context.Context, key string) error {
 	return nil
 }
 
+func (s *LocalStorage) PublicURL() string {
+	return s.publicURL
+}
+
 func (s *LocalStorage) resolvePath(key string) (string, error) {
 	cleanedKey := filepath.Clean(filepath.FromSlash(strings.TrimLeft(key, "/")))
 	targetPath := filepath.Clean(filepath.Join(s.baseDir, cleanedKey))
