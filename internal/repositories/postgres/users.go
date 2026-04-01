@@ -120,6 +120,25 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (r *UserRepository) UpdateProfile(ctx context.Context, id, name, contactPhone string, updatedAt time.Time) error {
+	commandTag, err := r.db.Exec(ctx,
+		`UPDATE users
+		    SET name = $2,
+		        contact_phone = $3,
+		        updated_at = $4
+		  WHERE id = $1`,
+		id, name, contactPhone, updatedAt,
+	)
+	if err != nil {
+		return err
+	}
+	if commandTag.RowsAffected() == 0 {
+		return repositories.ErrNotFound
+	}
+
+	return nil
+}
+
 func (r *UserRepository) UpdatePassword(ctx context.Context, id, passwordHash string, updatedAt time.Time) error {
 	commandTag, err := r.db.Exec(ctx,
 		`UPDATE users

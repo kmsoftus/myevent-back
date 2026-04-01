@@ -164,6 +164,21 @@ func (r *userRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *userRepository) UpdateProfile(_ context.Context, id, name, contactPhone string, updatedAt time.Time) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	user, ok := r.store.users[id]
+	if !ok {
+		return repositories.ErrNotFound
+	}
+
+	user.Name = name
+	user.ContactPhone = contactPhone
+	user.UpdatedAt = updatedAt
+	return nil
+}
+
 func (r *userRepository) UpdatePassword(_ context.Context, id, passwordHash string, updatedAt time.Time) error {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()

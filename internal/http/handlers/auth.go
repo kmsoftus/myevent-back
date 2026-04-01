@@ -119,6 +119,33 @@ func (h *AuthHandler) Me(w nethttp.ResponseWriter, r *nethttp.Request) {
 	apphttp.WriteJSON(w, nethttp.StatusOK, dto.NewUserResponse(user))
 }
 
+func (h *AuthHandler) UpdateMe(w nethttp.ResponseWriter, r *nethttp.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		apphttp.WriteErrorResponse(
+			w,
+			nethttp.StatusUnauthorized,
+			"Sessao invalida. Faca login novamente.",
+			"auth_session_invalid",
+			nil,
+		)
+		return
+	}
+
+	var request dto.UpdateProfileRequest
+	if !apphttp.DecodeJSON(w, r, &request) {
+		return
+	}
+
+	user, err := h.service.UpdateProfile(r.Context(), userID, request.Name, request.ContactPhone)
+	if err != nil {
+		apphttp.MapError(w, err)
+		return
+	}
+
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.NewProfileResponse(user, "Dados atualizados com sucesso."))
+}
+
 func (h *AuthHandler) DeleteMe(w nethttp.ResponseWriter, r *nethttp.Request) {
 	userID, ok := middleware.UserIDFromContext(r.Context())
 	if !ok {

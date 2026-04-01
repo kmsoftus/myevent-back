@@ -869,6 +869,68 @@ func TestRegisterSendsTelegramNotification(t *testing.T) {
 	}
 }
 
+func TestUpdateProfileUpdatesNameAndContactPhone(t *testing.T) {
+	router := newTestRouter(t)
+
+	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+		"name":           "Kaleb",
+		"email":          "kaleb-profile@example.com",
+		"password":       "12345678",
+		"accepted_terms": true,
+	})
+	if registerResponse.Code != http.StatusCreated {
+		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
+	}
+
+	var authPayload struct {
+		Token string `json:"token"`
+	}
+	decodeBody(t, registerResponse, &authPayload)
+
+	updateResponse := performJSONRequest(t, router, http.MethodPatch, "/v1/auth/me", authPayload.Token, map[string]any{
+		"name":          "Kaleb Moura",
+		"contact_phone": "11999998888",
+	})
+	if updateResponse.Code != http.StatusOK {
+		t.Fatalf("expected update profile status 200, got %d", updateResponse.Code)
+	}
+
+	var updatePayload struct {
+		Message string `json:"message"`
+		User    struct {
+			Name         string `json:"name"`
+			ContactPhone string `json:"contact_phone"`
+		} `json:"user"`
+	}
+	decodeBody(t, updateResponse, &updatePayload)
+	if updatePayload.Message != "Dados atualizados com sucesso." {
+		t.Fatalf("expected update message, got %q", updatePayload.Message)
+	}
+	if updatePayload.User.Name != "Kaleb Moura" {
+		t.Fatalf("expected updated name, got %q", updatePayload.User.Name)
+	}
+	if updatePayload.User.ContactPhone != "(11) 99999-8888" {
+		t.Fatalf("expected formatted contact phone, got %q", updatePayload.User.ContactPhone)
+	}
+
+	meResponse := performJSONRequest(t, router, http.MethodGet, "/v1/auth/me", authPayload.Token, nil)
+	if meResponse.Code != http.StatusOK {
+		t.Fatalf("expected me status 200, got %d", meResponse.Code)
+	}
+
+	var mePayload struct {
+		Name         string `json:"name"`
+		ContactPhone string `json:"contact_phone"`
+	}
+	decodeBody(t, meResponse, &mePayload)
+	if mePayload.Name != "Kaleb Moura" {
+		t.Fatalf("expected persisted updated name, got %q", mePayload.Name)
+	}
+	if mePayload.ContactPhone != "(11) 99999-8888" {
+		t.Fatalf("expected persisted formatted contact phone, got %q", mePayload.ContactPhone)
+	}
+}
+
 func TestCreateEventRejectsPastDate(t *testing.T) {
 	router := newTestRouter(t)
 

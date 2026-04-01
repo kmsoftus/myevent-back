@@ -77,6 +77,7 @@ func NewRouter(
 			r.Group(func(r chi.Router) {
 				r.Use(authmiddleware.Authenticator(jwtManager))
 				r.Get("/me", authHandler.Me)
+				r.Patch("/me", authHandler.UpdateMe)
 				r.Delete("/me", authHandler.DeleteMe)
 			})
 		})

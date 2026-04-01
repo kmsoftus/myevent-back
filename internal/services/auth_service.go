@@ -199,6 +199,42 @@ func (s *AuthService) Me(ctx context.Context, userID string) (*models.User, erro
 	return user, nil
 }
 
+func (s *AuthService) UpdateProfile(ctx context.Context, userID, name, contactPhone string) (*models.User, error) {
+	userID = strings.TrimSpace(userID)
+	name = strings.TrimSpace(name)
+	contactPhone = normalizeContactPhone(contactPhone)
+
+	if userID == "" {
+		return nil, NewUnauthorizedError(
+			"Sessao invalida. Faca login novamente.",
+			"auth_session_invalid",
+		)
+	}
+	if name == "" {
+		return nil, NewValidationError(
+			"Informe seu nome.",
+			"auth_name_required",
+			FieldError{Field: "name", Message: "Informe seu nome."},
+		)
+	}
+	if err := validateContactPhone(contactPhone); err != nil {
+		return nil, err
+	}
+
+	now := time.Now().UTC()
+	if err := s.users.UpdateProfile(ctx, userID, name, contactPhone, now); err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, NewUnauthorizedError(
+				"Sessao invalida. Faca login novamente.",
+				"auth_session_invalid",
+			)
+		}
+		return nil, err
+	}
+
+	return s.users.GetByID(ctx, userID)
+}
+
 func validateEmail(email string) error {
 	if email == "" {
 		return NewValidationError(
