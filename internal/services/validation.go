@@ -14,13 +14,13 @@ func validateOptionalURL(field, value string) error {
 
 	parsed, err := url.Parse(value)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return fmt.Errorf("%w: %s must be a valid absolute URL", ErrValidation, field)
+		return fmt.Errorf("%w: O campo %s deve ser uma URL valida.", ErrValidation, field)
 	}
 
 	switch strings.ToLower(parsed.Scheme) {
 	case "http", "https":
 		return nil
 	default:
-		return fmt.Errorf("%w: %s must use http or https", ErrValidation, field)
+		return fmt.Errorf("%w: O campo %s deve usar http ou https.", ErrValidation, field)
 	}
 }

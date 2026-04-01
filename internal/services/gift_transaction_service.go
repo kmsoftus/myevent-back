@@ -76,7 +76,7 @@ func (s *GiftTransactionService) ListByEvent(ctx context.Context, userID, eventI
 
 func (s *GiftTransactionService) Confirm(ctx context.Context, userID, eventID, transactionID string, input dto.UpdateGiftTransactionStatusRequest) (*GiftTransactionDetails, error) {
 	if strings.TrimSpace(strings.ToLower(input.Status)) != "confirmed" {
-		return nil, fmt.Errorf("%w: status must be confirmed", ErrValidation)
+		return nil, fmt.Errorf("%w: O status deve ser confirmado.", ErrValidation)
 	}
 
 	transaction, gift, err := s.getOwnedTransaction(ctx, userID, eventID, transactionID)
@@ -84,10 +84,10 @@ func (s *GiftTransactionService) Confirm(ctx context.Context, userID, eventID, t
 		return nil, err
 	}
 	if transaction.Status == "confirmed" {
-		return nil, fmt.Errorf("%w: transaction already confirmed", ErrConflict)
+		return nil, fmt.Errorf("%w: Esta transacao ja foi confirmada.", ErrConflict)
 	}
 	if transaction.Status == "canceled" {
-		return nil, fmt.Errorf("%w: canceled transaction cannot be confirmed", ErrConflict)
+		return nil, fmt.Errorf("%w: Nao e possivel confirmar uma transacao cancelada.", ErrConflict)
 	}
 
 	now := time.Now().UTC()
@@ -115,7 +115,7 @@ func (s *GiftTransactionService) Confirm(ctx context.Context, userID, eventID, t
 
 func (s *GiftTransactionService) Cancel(ctx context.Context, userID, eventID, transactionID string, input dto.UpdateGiftTransactionStatusRequest) (*GiftTransactionDetails, error) {
 	if strings.TrimSpace(strings.ToLower(input.Status)) != "canceled" {
-		return nil, fmt.Errorf("%w: status must be canceled", ErrValidation)
+		return nil, fmt.Errorf("%w: O status deve ser cancelado.", ErrValidation)
 	}
 
 	transaction, gift, err := s.getOwnedTransaction(ctx, userID, eventID, transactionID)
@@ -123,10 +123,10 @@ func (s *GiftTransactionService) Cancel(ctx context.Context, userID, eventID, tr
 		return nil, err
 	}
 	if transaction.Status == "canceled" {
-		return nil, fmt.Errorf("%w: transaction already canceled", ErrConflict)
+		return nil, fmt.Errorf("%w: Esta transacao ja foi cancelada.", ErrConflict)
 	}
 	if transaction.Status == "confirmed" {
-		return nil, fmt.Errorf("%w: confirmed transaction cannot be canceled", ErrConflict)
+		return nil, fmt.Errorf("%w: Nao e possivel cancelar uma transacao ja confirmada.", ErrConflict)
 	}
 
 	now := time.Now().UTC()
@@ -184,7 +184,7 @@ func (s *GiftTransactionService) createPublicTransaction(
 	}
 
 	if gift.Status != "available" {
-		return nil, fmt.Errorf("%w: gift is not available", ErrConflict)
+		return nil, fmt.Errorf("%w: Este presente nao esta disponivel.", ErrConflict)
 	}
 
 	nextGiftStatus, err := validateGiftAction(gift, transactionType)
@@ -273,7 +273,7 @@ func (s *GiftTransactionService) ensureEventOwnership(ctx context.Context, userI
 
 func validateGiftTransactionPayload(guestName string) error {
 	if strings.TrimSpace(guestName) == "" {
-		return fmt.Errorf("%w: guest_name is required", ErrValidation)
+		return fmt.Errorf("%w: Informe o nome do convidado.", ErrValidation)
 	}
 	return nil
 }
@@ -282,15 +282,15 @@ func validateGiftAction(gift *models.Gift, transactionType string) (string, erro
 	switch transactionType {
 	case "reservation":
 		if !gift.AllowReservation {
-			return "", fmt.Errorf("%w: gift does not allow reservation", ErrValidation)
+			return "", fmt.Errorf("%w: Este presente nao aceita reservas.", ErrValidation)
 		}
 		return "reserved", nil
 	case "pix":
 		if !gift.AllowPix {
-			return "", fmt.Errorf("%w: gift does not allow pix", ErrValidation)
+			return "", fmt.Errorf("%w: Este presente nao aceita pagamento via Pix.", ErrValidation)
 		}
 		return "pending_payment", nil
 	default:
-		return "", fmt.Errorf("%w: invalid gift transaction type", ErrValidation)
+		return "", fmt.Errorf("%w: Tipo de transacao invalido.", ErrValidation)
 	}
 }

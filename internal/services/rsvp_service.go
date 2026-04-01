@@ -49,7 +49,7 @@ func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.C
 
 	guestIdentifier := strings.TrimSpace(input.GuestIdentifier)
 	if guestIdentifier == "" {
-		return nil, fmt.Errorf("%w: guest_identifier is required", ErrValidation)
+		return nil, fmt.Errorf("%w: Informe o identificador do convidado.", ErrValidation)
 	}
 
 	var guest *models.Guest
@@ -199,7 +199,7 @@ func (s *RSVPService) findOrCreateOpenRSVPGuest(ctx context.Context, eventID, na
 	}
 
 	if created == nil {
-		return nil, fmt.Errorf("%w: could not allocate guest identifiers", ErrConflict)
+		return nil, fmt.Errorf("%w: Nao foi possivel gerar identificadores para o convidado.", ErrConflict)
 	}
 
 	return created, nil
@@ -210,21 +210,21 @@ func validateRSVPInput(status string, companionsCount, maxCompanions int) (strin
 	switch status {
 	case "confirmed":
 		if companionsCount < 0 {
-			return "", 0, fmt.Errorf("%w: companions_count cannot be negative", ErrValidation)
+			return "", 0, fmt.Errorf("%w: O numero de acompanhantes nao pode ser negativo.", ErrValidation)
 		}
 		if companionsCount > maxCompanions {
-			return "", 0, fmt.Errorf("%w: companions_count exceeds guest limit", ErrValidation)
+			return "", 0, fmt.Errorf("%w: O numero de acompanhantes ultrapassa o limite do convidado.", ErrValidation)
 		}
 		return status, companionsCount, nil
 	case "declined":
 		if companionsCount < 0 {
-			return "", 0, fmt.Errorf("%w: companions_count cannot be negative", ErrValidation)
+			return "", 0, fmt.Errorf("%w: O numero de acompanhantes nao pode ser negativo.", ErrValidation)
 		}
 		if companionsCount > 0 {
-			return "", 0, fmt.Errorf("%w: declined RSVP must use companions_count 0", ErrValidation)
+			return "", 0, fmt.Errorf("%w: Ao recusar o convite, o numero de acompanhantes deve ser 0.", ErrValidation)
 		}
 		return status, 0, nil
 	default:
-		return "", 0, fmt.Errorf("%w: invalid RSVP status", ErrValidation)
+		return "", 0, fmt.Errorf("%w: Status de confirmacao invalido.", ErrValidation)
 	}
 }

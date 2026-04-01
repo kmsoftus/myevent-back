@@ -227,10 +227,10 @@ func (s *GiftService) ensureEventOwnership(ctx context.Context, userID, eventID 
 
 func validateGiftPayload(title string, valueCents *int) error {
 	if strings.TrimSpace(title) == "" {
-		return fmt.Errorf("%w: title is required", ErrValidation)
+		return fmt.Errorf("%w: Informe o nome do presente.", ErrValidation)
 	}
 	if valueCents != nil && *valueCents < 0 {
-		return fmt.Errorf("%w: value_cents cannot be negative", ErrValidation)
+		return fmt.Errorf("%w: O valor do presente nao pode ser negativo.", ErrValidation)
 	}
 	return nil
 }

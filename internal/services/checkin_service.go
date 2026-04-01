@@ -35,7 +35,7 @@ func (s *CheckInService) CheckIn(ctx context.Context, userID, eventID string, in
 	}
 
 	if guest.CheckedInAt != nil {
-		return nil, fmt.Errorf("%w: guest already checked in", ErrConflict)
+		return nil, fmt.Errorf("%w: Convidado ja realizou check-in.", ErrConflict)
 	}
 
 	now := time.Now().UTC()
@@ -47,7 +47,7 @@ func (s *CheckInService) CheckIn(ctx context.Context, userID, eventID string, in
 			return nil, ErrNotFound
 		}
 		if errors.Is(err, repositories.ErrConflict) {
-			return nil, fmt.Errorf("%w: guest identifiers already in use", ErrConflict)
+			return nil, fmt.Errorf("%w: Identificadores do convidado ja estao em uso.", ErrConflict)
 		}
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (s *CheckInService) resolveGuest(ctx context.Context, eventID string, input
 	guestID := strings.TrimSpace(input.GuestID)
 
 	if (qrCodeToken == "" && guestID == "") || (qrCodeToken != "" && guestID != "") {
-		return nil, fmt.Errorf("%w: provide either qr_code_token or guest_id", ErrValidation)
+		return nil, fmt.Errorf("%w: Informe qr_code_token ou guest_id, nao ambos.", ErrValidation)
 	}
 
 	var (

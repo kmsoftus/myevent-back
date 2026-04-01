@@ -65,7 +65,7 @@ func (s *GuestService) Create(ctx context.Context, userID, eventID string, input
 	}
 
 	if created == nil {
-		return nil, fmt.Errorf("%w: could not allocate guest identifiers", ErrConflict)
+		return nil, fmt.Errorf("%w: Nao foi possivel gerar identificadores para o convidado.", ErrConflict)
 	}
 
 	return created, nil
@@ -125,7 +125,7 @@ func (s *GuestService) Update(ctx context.Context, userID, eventID, guestID stri
 			return nil, ErrNotFound
 		}
 		if errors.Is(err, repositories.ErrConflict) {
-			return nil, fmt.Errorf("%w: guest identifiers already in use", ErrConflict)
+			return nil, fmt.Errorf("%w: Identificadores do convidado ja estao em uso.", ErrConflict)
 		}
 		return nil, err
 	}
@@ -167,15 +167,15 @@ func (s *GuestService) ensureEventOwnership(ctx context.Context, userID, eventID
 
 func validateGuestPayload(name, email string, maxCompanions int) error {
 	if strings.TrimSpace(name) == "" {
-		return fmt.Errorf("%w: name is required", ErrValidation)
+		return fmt.Errorf("%w: Informe o nome do convidado.", ErrValidation)
 	}
 	if maxCompanions < 0 {
-		return fmt.Errorf("%w: max_companions cannot be negative", ErrValidation)
+		return fmt.Errorf("%w: O numero de acompanhantes nao pode ser negativo.", ErrValidation)
 	}
 	email = normalizeOptionalEmail(email)
 	if email != "" {
 		if _, err := mail.ParseAddress(email); err != nil {
-			return fmt.Errorf("%w: invalid email", ErrValidation)
+			return fmt.Errorf("%w: E-mail invalido.", ErrValidation)
 		}
 	}
 	return nil

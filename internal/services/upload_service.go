@@ -64,16 +64,16 @@ func (s *UploadService) Upload(ctx context.Context, folder, filename string, fil
 		return nil, err
 	}
 	if len(content) == 0 {
-		return nil, fmt.Errorf("%w: file is required", ErrValidation)
+		return nil, fmt.Errorf("%w: Nenhum arquivo foi enviado.", ErrValidation)
 	}
 	if int64(len(content)) > s.maxFileSizeBytes {
-		return nil, fmt.Errorf("%w: file exceeds %d bytes", ErrValidation, s.maxFileSizeBytes)
+		return nil, fmt.Errorf("%w: O arquivo excede o tamanho maximo permitido de %d bytes.", ErrValidation, s.maxFileSizeBytes)
 	}
 
 	contentType := nethttp.DetectContentType(content)
 	extension, ok := allowedUploadMIMEs[contentType]
 	if !ok {
-		return nil, fmt.Errorf("%w: unsupported file type", ErrValidation)
+		return nil, fmt.Errorf("%w: Tipo de arquivo nao suportado.", ErrValidation)
 	}
 
 	key := path.Join(folder, uuid.NewString()+extension)
@@ -140,7 +140,7 @@ func (s *UploadService) ManagedKeyFromURL(raw string) (string, bool) {
 func normalizeUploadFolder(folder string) (string, error) {
 	cleaned := strings.Trim(strings.TrimSpace(folder), "/")
 	if _, ok := allowedUploadFolders[cleaned]; !ok {
-		return "", fmt.Errorf("%w: folder is not allowed", ErrValidation)
+		return "", fmt.Errorf("%w: Pasta de upload nao permitida.", ErrValidation)
 	}
 	return cleaned, nil
 }
@@ -148,21 +148,21 @@ func normalizeUploadFolder(folder string) (string, error) {
 func normalizeUploadKey(key string) (string, error) {
 	cleaned := strings.Trim(strings.TrimSpace(key), "/")
 	if cleaned == "" {
-		return "", fmt.Errorf("%w: key is required", ErrValidation)
+		return "", fmt.Errorf("%w: Chave de upload invalida.", ErrValidation)
 	}
 
 	if path.Clean(cleaned) != cleaned || strings.Contains(cleaned, "..") {
-		return "", fmt.Errorf("%w: invalid upload key", ErrValidation)
+		return "", fmt.Errorf("%w: Chave de upload invalida.", ErrValidation)
 	}
 
 	parts := strings.Split(cleaned, "/")
 	if len(parts) < 3 {
-		return "", fmt.Errorf("%w: invalid upload key", ErrValidation)
+		return "", fmt.Errorf("%w: Chave de upload invalida.", ErrValidation)
 	}
 
 	folder := strings.Join(parts[:2], "/")
 	if _, ok := allowedUploadFolders[folder]; !ok {
-		return "", fmt.Errorf("%w: invalid upload key", ErrValidation)
+		return "", fmt.Errorf("%w: Chave de upload invalida.", ErrValidation)
 	}
 
 	return cleaned, nil

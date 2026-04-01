@@ -68,7 +68,7 @@ func (s *EventService) Create(ctx context.Context, userID string, input dto.Crea
 		TextColor:       defaultString(strings.TrimSpace(input.TextColor), palette.TextColor),
 		PixKey:          strings.TrimSpace(input.PixKey),
 		PixHolderName:   strings.TrimSpace(input.PixHolderName),
-		Status:          "draft",
+		Status:          "published",
 		OpenRSVP:        input.OpenRSVP,
 		CreatedAt:       now,
 		UpdatedAt:       now,
@@ -76,7 +76,7 @@ func (s *EventService) Create(ctx context.Context, userID string, input dto.Crea
 
 	if err := s.events.Create(ctx, event); err != nil {
 		if errors.Is(err, repositories.ErrConflict) {
-			return nil, fmt.Errorf("%w: slug already in use", ErrConflict)
+			return nil, fmt.Errorf("%w: Este endereco ja esta sendo usado por outro evento. Tente um diferente.", ErrConflict)
 		}
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func (s *EventService) Update(ctx context.Context, userID, eventID string, input
 
 	if err := s.events.Update(ctx, event); err != nil {
 		if errors.Is(err, repositories.ErrConflict) {
-			return nil, fmt.Errorf("%w: slug already in use", ErrConflict)
+			return nil, fmt.Errorf("%w: Este endereco ja esta sendo usado por outro evento. Tente um diferente.", ErrConflict)
 		}
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (s *EventService) UpdateStatus(ctx context.Context, userID, eventID, status
 
 	status = strings.TrimSpace(strings.ToLower(status))
 	if !isValidEventStatus(status) {
-		return nil, fmt.Errorf("%w: invalid event status", ErrValidation)
+		return nil, fmt.Errorf("%w: Status do evento invalido.", ErrValidation)
 	}
 
 	event.Status = status
@@ -233,7 +233,7 @@ func (s *EventService) GetPublishedBySlug(ctx context.Context, slug string) (*mo
 
 func (s *EventService) validateAndNormalizePayload(title, slug, date, previousDate, hour, theme, primaryColor, secondaryColor, backgroundColor, textColor, coverImageURL string) (string, error) {
 	if strings.TrimSpace(title) == "" {
-		return "", fmt.Errorf("%w: title is required", ErrValidation)
+		return "", fmt.Errorf("%w: Informe o nome do evento.", ErrValidation)
 	}
 
 	normalizedSlug := utils.NormalizeSlug(slug)
@@ -241,14 +241,14 @@ func (s *EventService) validateAndNormalizePayload(title, slug, date, previousDa
 		normalizedSlug = utils.NormalizeSlug(title)
 	}
 	if normalizedSlug == "" {
-		return "", fmt.Errorf("%w: invalid slug", ErrValidation)
+		return "", fmt.Errorf("%w: Informe um endereco valido para o evento.", ErrValidation)
 	}
 
 	date = strings.TrimSpace(date)
 	if date != "" {
 		parsedDate, err := time.ParseInLocation("2006-01-02", date, saoPauloLocation)
 		if err != nil {
-			return "", fmt.Errorf("%w: date must use YYYY-MM-DD", ErrValidation)
+			return "", fmt.Errorf("%w: A data deve estar no formato AAAA-MM-DD.", ErrValidation)
 		}
 
 		today := startOfDayInLocation(time.Now(), saoPauloLocation)
@@ -260,7 +260,7 @@ func (s *EventService) validateAndNormalizePayload(title, slug, date, previousDa
 	hour = strings.TrimSpace(hour)
 	if hour != "" {
 		if _, err := time.Parse("15:04", hour); err != nil {
-			return "", fmt.Errorf("%w: time must use HH:MM", ErrValidation)
+			return "", fmt.Errorf("%w: O horario deve estar no formato HH:MM.", ErrValidation)
 		}
 	}
 
@@ -296,7 +296,7 @@ func validateTheme(theme string) error {
 	case "classic", "minimal", "party":
 		return nil
 	default:
-		return fmt.Errorf("%w: invalid theme", ErrValidation)
+		return fmt.Errorf("%w: Tema invalido.", ErrValidation)
 	}
 }
 
@@ -306,7 +306,7 @@ func validateHexColor(field, color string) error {
 		return nil
 	}
 	if !hexColorPattern.MatchString(color) {
-		return fmt.Errorf("%w: %s must use #RRGGBB", ErrValidation, field)
+		return fmt.Errorf("%w: A cor do campo %s deve estar no formato #RRGGBB.", ErrValidation, field)
 	}
 	return nil
 }
