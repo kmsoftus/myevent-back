@@ -15,7 +15,7 @@ import (
 func TestGiftTransactionServiceReserveBySlugPreventsDoubleBooking(t *testing.T) {
 	ctx := context.Background()
 	store := memory.NewStore()
-	service := NewGiftTransactionService(store.Events(), store.Gifts(), store.GiftTransactions())
+	service := NewGiftTransactionService(store.Events(), store.Gifts(), store.GiftTransactions(), time.Hour)
 
 	now := time.Now().UTC()
 	event := &models.Event{
@@ -98,7 +98,7 @@ func TestGiftTransactionServiceReserveBySlugPreventsDoubleBooking(t *testing.T) 
 func TestRSVPServiceSubmitBySlugOpenRSVPAvoidsDuplicateGuest(t *testing.T) {
 	ctx := context.Background()
 	store := memory.NewStore()
-	service := NewRSVPService(store.Events(), store.Guests(), store.RSVPs())
+	service := NewRSVPService(store.Events(), store.Guests(), store.RSVPs(), 0)
 
 	now := time.Now().UTC()
 	event := &models.Event{
@@ -168,7 +168,7 @@ func TestRSVPServiceSubmitBySlugOpenRSVPAvoidsDuplicateGuest(t *testing.T) {
 func TestGiftTransactionServiceConfirmUpdatesGiftAndTransactionAtomically(t *testing.T) {
 	ctx := context.Background()
 	store := memory.NewStore()
-	service := NewGiftTransactionService(store.Events(), store.Gifts(), store.GiftTransactions())
+	service := NewGiftTransactionService(store.Events(), store.Gifts(), store.GiftTransactions(), time.Hour)
 
 	now := time.Now().UTC()
 	event := &models.Event{

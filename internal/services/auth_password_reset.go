@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"time"
@@ -65,7 +66,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) (string,
 		ToEmail:   user.Email,
 		ToName:    user.Name,
 	}); err != nil {
-		return "", err
+		log.Printf("password reset email delivery failed: %v", err)
 	}
 
 	return forgotPasswordSuccessMessage, nil

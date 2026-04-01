@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"strings"
+	"time"
 
 	"myevent-back/internal/models"
 	"myevent-back/internal/repositories"
@@ -100,4 +101,32 @@ func (r *giftTransactionRepository) UpdateTransactionAndGift(_ context.Context, 
 	currentGift.UpdatedAt = gift.UpdatedAt
 
 	return nil
+}
+
+func (r *giftTransactionRepository) ExpirePendingBefore(_ context.Context, cutoff, expiredAt time.Time) (int, error) {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	expiredCount := 0
+	for _, transaction := range r.store.giftTransactions {
+		if transaction.Status != "pending" || transaction.CreatedAt.After(cutoff) {
+			continue
+		}
+
+		gift, ok := r.store.gifts[transaction.GiftID]
+		if !ok {
+			continue
+		}
+		if gift.Status != "reserved" && gift.Status != "pending_payment" {
+			continue
+		}
+
+		transaction.Status = "expired"
+		transaction.UpdatedAt = expiredAt
+		gift.Status = "available"
+		gift.UpdatedAt = expiredAt
+		expiredCount++
+	}
+
+	return expiredCount, nil
 }

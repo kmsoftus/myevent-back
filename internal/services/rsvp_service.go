@@ -21,17 +21,19 @@ type RSVPDetails struct {
 }
 
 type RSVPService struct {
-	events         repositories.EventRepository
-	guests         repositories.GuestRepository
-	rsvps          repositories.RSVPRepository
-	openRSVPGuests atomicOpenRSVPGuestRepository
+	events                       repositories.EventRepository
+	guests                       repositories.GuestRepository
+	rsvps                        repositories.RSVPRepository
+	openRSVPGuests               atomicOpenRSVPGuestRepository
+	openRSVPDefaultMaxCompanions int
 }
 
-func NewRSVPService(events repositories.EventRepository, guests repositories.GuestRepository, rsvps repositories.RSVPRepository) *RSVPService {
+func NewRSVPService(events repositories.EventRepository, guests repositories.GuestRepository, rsvps repositories.RSVPRepository, openRSVPDefaultMaxCompanions int) *RSVPService {
 	service := &RSVPService{
-		events: events,
-		guests: guests,
-		rsvps:  rsvps,
+		events:                       events,
+		guests:                       guests,
+		rsvps:                        rsvps,
+		openRSVPDefaultMaxCompanions: max(0, openRSVPDefaultMaxCompanions),
 	}
 
 	if openRSVPGuests, ok := guests.(atomicOpenRSVPGuestRepository); ok {
@@ -131,6 +133,9 @@ func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.C
 
 	status, companionsCount, companionNames, err := validateRSVPInput(input.Status, input.CompanionsCount, input.CompanionNames, guest.MaxCompanions)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateTextMaxLength("message", "mensagem", input.Message, maxRSVPMessageLength, "rsvp_message_too_long"); err != nil {
 		return nil, err
 	}
 
@@ -246,7 +251,7 @@ func (s *RSVPService) findOrCreateOpenRSVPGuest(ctx context.Context, eventID, na
 				InviteCode:    utils.RandomUpperString(8),
 				ShortCode:     utils.RandomDigits(6),
 				QRCodeToken:   utils.RandomString(32),
-				MaxCompanions: 10,
+				MaxCompanions: s.openRSVPDefaultMaxCompanions,
 				RSVPStatus:    "pending",
 				CreatedAt:     now,
 				UpdatedAt:     now,
@@ -288,7 +293,7 @@ func (s *RSVPService) findOrCreateOpenRSVPGuest(ctx context.Context, eventID, na
 			InviteCode:    utils.RandomUpperString(8),
 			ShortCode:     utils.RandomDigits(6),
 			QRCodeToken:   utils.RandomString(32),
-			MaxCompanions: 10,
+			MaxCompanions: s.openRSVPDefaultMaxCompanions,
 			RSVPStatus:    "pending",
 			CreatedAt:     now,
 			UpdatedAt:     now,

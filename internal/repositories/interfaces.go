@@ -74,4 +74,5 @@ type GiftTransactionRepository interface {
 	ListByEventID(ctx context.Context, eventID string) ([]*models.GiftTransaction, error)
 	GetByID(ctx context.Context, id string) (*models.GiftTransaction, error)
 	Update(ctx context.Context, transaction *models.GiftTransaction) error
+	ExpirePendingBefore(ctx context.Context, cutoff, expiredAt time.Time) (int, error)
 }

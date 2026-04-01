@@ -24,17 +24,20 @@ type GiftTransactionService struct {
 	gifts        repositories.GiftRepository
 	transactions repositories.GiftTransactionRepository
 	atomicTxs    atomicGiftTransactionRepository
+	pendingTTL   time.Duration
 }
 
 func NewGiftTransactionService(
 	events repositories.EventRepository,
 	gifts repositories.GiftRepository,
 	transactions repositories.GiftTransactionRepository,
+	pendingTTL time.Duration,
 ) *GiftTransactionService {
 	service := &GiftTransactionService{
 		events:       events,
 		gifts:        gifts,
 		transactions: transactions,
+		pendingTTL:   pendingTTL,
 	}
 
 	if atomicTxs, ok := transactions.(atomicGiftTransactionRepository); ok {
@@ -42,6 +45,15 @@ func NewGiftTransactionService(
 	}
 
 	return service
+}
+
+func (s *GiftTransactionService) ExpirePending(ctx context.Context) (int, error) {
+	if s.pendingTTL <= 0 {
+		return 0, nil
+	}
+
+	now := time.Now().UTC()
+	return s.transactions.ExpirePendingBefore(ctx, now.Add(-s.pendingTTL), now)
 }
 
 func (s *GiftTransactionService) ReserveBySlug(ctx context.Context, slug, giftID string, input dto.CreateGiftTransactionRequest) (*GiftTransactionDetails, error) {
@@ -96,6 +108,12 @@ func (s *GiftTransactionService) Confirm(ctx context.Context, userID, eventID, t
 	if transaction.Status == "canceled" {
 		return nil, fmt.Errorf("%w: Nao e possivel confirmar uma transacao cancelada.", ErrConflict)
 	}
+	if transaction.Status == "expired" {
+		return nil, fmt.Errorf("%w: Nao e possivel confirmar uma transacao expirada.", ErrConflict)
+	}
+	if transaction.Status != "pending" {
+		return nil, fmt.Errorf("%w: Nao e possivel confirmar esta transacao no estado atual.", ErrConflict)
+	}
 
 	now := time.Now().UTC()
 	transaction.Status = "confirmed"
@@ -144,6 +162,12 @@ func (s *GiftTransactionService) Cancel(ctx context.Context, userID, eventID, tr
 	if transaction.Status == "confirmed" {
 		return nil, fmt.Errorf("%w: Nao e possivel cancelar uma transacao ja confirmada.", ErrConflict)
 	}
+	if transaction.Status == "expired" {
+		return nil, fmt.Errorf("%w: Esta transacao ja expirou.", ErrConflict)
+	}
+	if transaction.Status != "pending" {
+		return nil, fmt.Errorf("%w: Nao e possivel cancelar esta transacao no estado atual.", ErrConflict)
+	}
 
 	now := time.Now().UTC()
 	transaction.Status = "canceled"
@@ -182,6 +206,10 @@ func (s *GiftTransactionService) createPublicTransaction(
 	input dto.CreateGiftTransactionRequest,
 	transactionType string,
 ) (*GiftTransactionDetails, error) {
+	if _, err := s.ExpirePending(ctx); err != nil {
+		return nil, err
+	}
+
 	event, err := s.events.GetBySlug(ctx, slug)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
@@ -204,7 +232,7 @@ func (s *GiftTransactionService) createPublicTransaction(
 		return nil, ErrNotFound
 	}
 
-	if err := validateGiftTransactionPayload(input.GuestName); err != nil {
+	if err := validateGiftTransactionPayload(input); err != nil {
 		return nil, err
 	}
 
@@ -310,9 +338,15 @@ func (s *GiftTransactionService) ensureEventOwnership(ctx context.Context, userI
 	return event, nil
 }
 
-func validateGiftTransactionPayload(guestName string) error {
-	if strings.TrimSpace(guestName) == "" {
+func validateGiftTransactionPayload(input dto.CreateGiftTransactionRequest) error {
+	if strings.TrimSpace(input.GuestName) == "" {
 		return fmt.Errorf("%w: Informe o nome do convidado.", ErrValidation)
+	}
+	if err := validateTextMaxLength("guest_contact", "contato do convidado", input.GuestContact, maxGiftTransactionGuestContactLen, "gift_transaction_guest_contact_too_long"); err != nil {
+		return err
+	}
+	if err := validateTextMaxLength("message", "mensagem", input.Message, maxGiftTransactionMessageLength, "gift_transaction_message_too_long"); err != nil {
+		return err
 	}
 	return nil
 }

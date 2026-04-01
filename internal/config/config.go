@@ -8,62 +8,68 @@ import (
 )
 
 type Config struct {
-	AppEnv             string
-	AppPort            string
-	AppBaseURL         string
-	FrontendURL        string
-	EmailLogoURL       string
-	PasswordResetURL   string
-	TelegramBotToken   string
-	TelegramGroupID    string
-	JWTSecret          string
-	JWTExpiresIn       time.Duration
-	DatabaseURL        string
-	CORSAllowedOrigins []string
-	BrevoAPIKey        string
-	BrevoSenderEmail   string
-	BrevoSenderName    string
-	PasswordResetTTL   time.Duration
-	R2AccountID        string
-	R2AccessKeyID      string
-	R2SecretAccessKey  string
-	R2Bucket           string
-	R2Region           string
-	R2Endpoint         string
-	R2PublicURL        string
-	LocalUploadDir     string
-	UploadMaxSizeBytes int64
+	AppEnv                       string
+	AppPort                      string
+	AppBaseURL                   string
+	FrontendURL                  string
+	EmailLogoURL                 string
+	PasswordResetURL             string
+	TelegramBotToken             string
+	TelegramGroupID              string
+	JWTSecret                    string
+	JWTExpiresIn                 time.Duration
+	DatabaseURL                  string
+	CORSAllowedOrigins           []string
+	BrevoAPIKey                  string
+	BrevoSenderEmail             string
+	BrevoSenderName              string
+	PasswordResetTTL             time.Duration
+	GiftReservationTTL           time.Duration
+	GiftSweepInterval            time.Duration
+	OpenRSVPDefaultMaxCompanions int
+	R2AccountID                  string
+	R2AccessKeyID                string
+	R2SecretAccessKey            string
+	R2Bucket                     string
+	R2Region                     string
+	R2Endpoint                   string
+	R2PublicURL                  string
+	LocalUploadDir               string
+	UploadMaxSizeBytes           int64
 }
 
 func Load() Config {
 	frontendURL := getEnv("FRONTEND_URL", "http://localhost:3000")
 
 	return Config{
-		AppEnv:             getEnv("APP_ENV", "development"),
-		AppPort:            getEnv("APP_PORT", "8080"),
-		AppBaseURL:         getEnv("APP_BASE_URL", "http://localhost:8080"),
-		FrontendURL:        frontendURL,
-		EmailLogoURL:       getEnv("EMAIL_LOGO_URL", strings.TrimRight(frontendURL, "/")+"/brand/myevent-social-avatar.png"),
-		PasswordResetURL:   getEnv("PASSWORD_RESET_URL", strings.TrimRight(frontendURL, "/")+"/redefinir-senha"),
-		TelegramBotToken:   getEnv("TELEGRAM_BOT_TOKEN", ""),
-		TelegramGroupID:    getEnv("TELEGRAM_GROUP_ID", ""),
-		JWTSecret:          getEnv("JWT_SECRET", ""),
-		JWTExpiresIn:       getDurationEnv("JWT_EXPIRES_IN", 168*time.Hour),
-		DatabaseURL:        getEnv("DATABASE_URL", ""),
-		CORSAllowedOrigins: splitCSV(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")),
-		BrevoAPIKey:        getEnv("BREVO_API_KEY", ""),
-		BrevoSenderEmail:   getEnv("BREVO_SENDER_EMAIL", ""),
-		BrevoSenderName:    getEnv("BREVO_SENDER_NAME", "MyEvent"),
-		PasswordResetTTL:   getDurationEnv("PASSWORD_RESET_TTL", time.Hour),
-		R2AccountID:        getEnv("R2_ACCOUNT_ID", ""),
-		R2AccessKeyID:      getEnv("R2_ACCESS_KEY_ID", ""),
-		R2SecretAccessKey:  getEnv("R2_SECRET_ACCESS_KEY", ""),
-		R2Bucket:           getEnv("R2_BUCKET", ""),
-		R2Region:           getEnv("R2_REGION", "auto"),
-		R2Endpoint:         getEnv("R2_ENDPOINT", ""),
-		R2PublicURL:        getEnv("R2_PUBLIC_URL", ""),
-		LocalUploadDir:     getEnv("LOCAL_UPLOAD_DIR", ".data/uploads"),
-		UploadMaxSizeBytes: getInt64Env("UPLOAD_MAX_SIZE_BYTES", 10<<20),
+		AppEnv:                       getEnv("APP_ENV", "development"),
+		AppPort:                      getEnv("APP_PORT", "8080"),
+		AppBaseURL:                   getEnv("APP_BASE_URL", "http://localhost:8080"),
+		FrontendURL:                  frontendURL,
+		EmailLogoURL:                 getEnv("EMAIL_LOGO_URL", strings.TrimRight(frontendURL, "/")+"/brand/myevent-social-avatar.png"),
+		PasswordResetURL:             getEnv("PASSWORD_RESET_URL", strings.TrimRight(frontendURL, "/")+"/redefinir-senha"),
+		TelegramBotToken:             getEnv("TELEGRAM_BOT_TOKEN", ""),
+		TelegramGroupID:              getEnv("TELEGRAM_GROUP_ID", ""),
+		JWTSecret:                    getEnv("JWT_SECRET", ""),
+		JWTExpiresIn:                 getDurationEnv("JWT_EXPIRES_IN", 168*time.Hour),
+		DatabaseURL:                  getEnv("DATABASE_URL", ""),
+		CORSAllowedOrigins:           splitCSV(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")),
+		BrevoAPIKey:                  getEnv("BREVO_API_KEY", ""),
+		BrevoSenderEmail:             getEnv("BREVO_SENDER_EMAIL", ""),
+		BrevoSenderName:              getEnv("BREVO_SENDER_NAME", "MyEvent"),
+		PasswordResetTTL:             getDurationEnv("PASSWORD_RESET_TTL", time.Hour),
+		GiftReservationTTL:           getDurationEnv("GIFT_RESERVATION_TTL", 6*time.Hour),
+		GiftSweepInterval:            getDurationEnv("GIFT_SWEEP_INTERVAL", time.Minute),
+		OpenRSVPDefaultMaxCompanions: getIntEnv("OPEN_RSVP_DEFAULT_MAX_COMPANIONS", 0),
+		R2AccountID:                  getEnv("R2_ACCOUNT_ID", ""),
+		R2AccessKeyID:                getEnv("R2_ACCESS_KEY_ID", ""),
+		R2SecretAccessKey:            getEnv("R2_SECRET_ACCESS_KEY", ""),
+		R2Bucket:                     getEnv("R2_BUCKET", ""),
+		R2Region:                     getEnv("R2_REGION", "auto"),
+		R2Endpoint:                   getEnv("R2_ENDPOINT", ""),
+		R2PublicURL:                  getEnv("R2_PUBLIC_URL", ""),
+		LocalUploadDir:               getEnv("LOCAL_UPLOAD_DIR", ".data/uploads"),
+		UploadMaxSizeBytes:           getInt64Env("UPLOAD_MAX_SIZE_BYTES", 10<<20),
 	}
 }
 
@@ -115,6 +121,20 @@ func getInt64Env(key string, fallback int64) int64 {
 
 	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || parsed <= 0 {
+		return fallback
+	}
+
+	return parsed
+}
+
+func getIntEnv(key string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
 		return fallback
 	}
 

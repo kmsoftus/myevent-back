@@ -32,9 +32,11 @@ func (s *EventService) Create(ctx context.Context, userID string, input dto.Crea
 	slug, err := s.validateAndNormalizePayload(
 		input.Title,
 		input.Slug,
+		input.Description,
 		input.Date,
 		"",
 		input.Time,
+		input.HostMessage,
 		theme,
 		input.PrimaryColor,
 		input.SecondaryColor,
@@ -114,6 +116,8 @@ func (s *EventService) Update(ctx context.Context, userID, eventID string, input
 	nextSlug := coalesceString(input.Slug, event.Slug)
 	nextDate := coalesceString(input.Date, event.Date)
 	nextTime := coalesceString(input.Time, event.Time)
+	nextDescription := coalesceString(input.Description, event.Description)
+	nextHostMessage := coalesceString(input.HostMessage, event.HostMessage)
 	nextTheme := normalizeTheme(coalesceString(input.Theme, event.Theme))
 	nextPrimaryColor := resolveEventColorUpdate(input.PrimaryColor, event.PrimaryColor, event.Theme, nextTheme, func(palette themePalette) string {
 		return palette.PrimaryColor
@@ -132,9 +136,11 @@ func (s *EventService) Update(ctx context.Context, userID, eventID string, input
 	slug, err := s.validateAndNormalizePayload(
 		nextTitle,
 		nextSlug,
+		nextDescription,
 		nextDate,
 		event.Date,
 		nextTime,
+		nextHostMessage,
 		nextTheme,
 		nextPrimaryColor,
 		nextSecondaryColor,
@@ -149,13 +155,13 @@ func (s *EventService) Update(ctx context.Context, userID, eventID string, input
 	event.Title = strings.TrimSpace(nextTitle)
 	event.Slug = slug
 	event.Type = strings.TrimSpace(coalesceString(input.Type, event.Type))
-	event.Description = strings.TrimSpace(coalesceString(input.Description, event.Description))
+	event.Description = strings.TrimSpace(nextDescription)
 	event.Date = strings.TrimSpace(nextDate)
 	event.Time = strings.TrimSpace(nextTime)
 	event.LocationName = strings.TrimSpace(coalesceString(input.LocationName, event.LocationName))
 	event.Address = strings.TrimSpace(coalesceString(input.Address, event.Address))
 	event.CoverImageURL = strings.TrimSpace(nextCoverImageURL)
-	event.HostMessage = strings.TrimSpace(coalesceString(input.HostMessage, event.HostMessage))
+	event.HostMessage = strings.TrimSpace(nextHostMessage)
 	event.Theme = nextTheme
 	event.PrimaryColor = strings.TrimSpace(nextPrimaryColor)
 	event.SecondaryColor = strings.TrimSpace(nextSecondaryColor)
@@ -231,7 +237,7 @@ func (s *EventService) GetPublishedBySlug(ctx context.Context, slug string) (*mo
 	return event, nil
 }
 
-func (s *EventService) validateAndNormalizePayload(title, slug, date, previousDate, hour, theme, primaryColor, secondaryColor, backgroundColor, textColor, coverImageURL string) (string, error) {
+func (s *EventService) validateAndNormalizePayload(title, slug, description, date, previousDate, hour, hostMessage, theme, primaryColor, secondaryColor, backgroundColor, textColor, coverImageURL string) (string, error) {
 	if strings.TrimSpace(title) == "" {
 		return "", fmt.Errorf("%w: Informe o nome do evento.", ErrValidation)
 	}
@@ -267,6 +273,12 @@ func (s *EventService) validateAndNormalizePayload(title, slug, date, previousDa
 	if err := validateTheme(theme); err != nil {
 		return "", err
 	}
+	if err := validateTextMaxLength("description", "descricao", description, maxEventDescriptionLength, "event_description_too_long"); err != nil {
+		return "", err
+	}
+	if err := validateTextMaxLength("host_message", "mensagem dos anfitrioes", hostMessage, maxEventHostMessageLength, "event_host_message_too_long"); err != nil {
+		return "", err
+	}
 	if err := validateOptionalURL("cover_image_url", coverImageURL); err != nil {
 		return "", err
 	}
@@ -285,7 +297,6 @@ func (s *EventService) validateAndNormalizePayload(title, slug, date, previousDa
 
 	return normalizedSlug, nil
 }
-
 func validateTheme(theme string) error {
 	theme = strings.TrimSpace(strings.ToLower(theme))
 	if theme == "" {

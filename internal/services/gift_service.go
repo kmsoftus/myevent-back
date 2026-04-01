@@ -30,7 +30,7 @@ func (s *GiftService) Create(ctx context.Context, userID, eventID string, input 
 	if _, err := s.ensureEventOwnership(ctx, userID, eventID); err != nil {
 		return nil, err
 	}
-	if err := validateGiftPayload(input.Title, input.ValueCents); err != nil {
+	if err := validateGiftPayload(input.Title, input.Description, input.ValueCents); err != nil {
 		return nil, err
 	}
 	if err := validateGiftLinks(input.ImageURL, input.ExternalLink); err != nil {
@@ -165,7 +165,7 @@ func (s *GiftService) Update(ctx context.Context, userID, eventID, giftID string
 
 	nextTitle := coalesceString(input.Title, gift.Title)
 	nextValueCents := coalesceOptionalInt(input.ValueCents, gift.ValueCents)
-	if err := validateGiftPayload(nextTitle, nextValueCents); err != nil {
+	if err := validateGiftPayload(nextTitle, coalesceString(input.Description, gift.Description), nextValueCents); err != nil {
 		return nil, err
 	}
 	nextImageURL := coalesceString(input.ImageURL, gift.ImageURL)
@@ -225,9 +225,12 @@ func (s *GiftService) ensureEventOwnership(ctx context.Context, userID, eventID 
 	return event, nil
 }
 
-func validateGiftPayload(title string, valueCents *int) error {
+func validateGiftPayload(title, description string, valueCents *int) error {
 	if strings.TrimSpace(title) == "" {
 		return fmt.Errorf("%w: Informe o nome do presente.", ErrValidation)
+	}
+	if err := validateTextMaxLength("description", "descricao", description, maxGiftDescriptionLength, "gift_description_too_long"); err != nil {
+		return err
 	}
 	if valueCents != nil && *valueCents < 0 {
 		return fmt.Errorf("%w: O valor do presente nao pode ser negativo.", ErrValidation)

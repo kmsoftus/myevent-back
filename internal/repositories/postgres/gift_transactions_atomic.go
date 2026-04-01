@@ -3,6 +3,8 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -109,4 +111,71 @@ func (r *GiftTransactionRepository) UpdateTransactionAndGift(ctx context.Context
 	}
 
 	return tx.Commit(ctx)
+}
+
+func (r *GiftTransactionRepository) ExpirePendingBefore(ctx context.Context, cutoff, expiredAt time.Time) (int, error) {
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return 0, err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	rows, err := tx.Query(ctx,
+		`SELECT gt.id, gt.gift_id
+		   FROM gift_transactions gt
+		   JOIN gifts g ON g.id = gt.gift_id
+		  WHERE gt.status = 'pending'
+		    AND gt.created_at <= $1
+		    AND g.status IN ('reserved', 'pending_payment')
+		  FOR UPDATE OF gt, g`,
+		cutoff,
+	)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	type expiredTransaction struct {
+		id     string
+		giftID string
+	}
+
+	expired := make([]expiredTransaction, 0)
+	for rows.Next() {
+		var item expiredTransaction
+		if err := rows.Scan(&item.id, &item.giftID); err != nil {
+			return 0, err
+		}
+		expired = append(expired, item)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	for _, item := range expired {
+		if _, err := tx.Exec(ctx,
+			`UPDATE gift_transactions
+			    SET status = 'expired', updated_at = $1
+			  WHERE id = $2`,
+			expiredAt, item.id,
+		); err != nil {
+			return 0, err
+		}
+		if _, err := tx.Exec(ctx,
+			`UPDATE gifts
+			    SET status = 'available', updated_at = $1
+			  WHERE id = $2`,
+			expiredAt, item.giftID,
+		); err != nil {
+			return 0, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit expire pending gift transactions: %w", err)
+	}
+
+	return len(expired), nil
 }

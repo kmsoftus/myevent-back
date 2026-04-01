@@ -71,10 +71,10 @@ func main() {
 	)
 	eventService := services.NewEventService(events)
 	guestService := services.NewGuestService(events, guests)
-	rsvpService := services.NewRSVPService(events, guests, rsvps)
+	rsvpService := services.NewRSVPService(events, guests, rsvps, cfg.OpenRSVPDefaultMaxCompanions)
 	checkInService := services.NewCheckInService(events, guests, rsvps)
 	giftService := services.NewGiftService(events, gifts)
-	giftTransactionService := services.NewGiftTransactionService(events, gifts, giftTransactions)
+	giftTransactionService := services.NewGiftTransactionService(events, gifts, giftTransactions, cfg.GiftReservationTTL)
 	dashboardService := services.NewDashboardService(events, guests, gifts)
 
 	objectStorage, err := buildStorage(ctx, cfg)
@@ -110,6 +110,10 @@ func main() {
 	serverCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if cfg.GiftReservationTTL > 0 && cfg.GiftSweepInterval > 0 {
+		go startGiftPendingSweeper(serverCtx, giftTransactionService, cfg.GiftSweepInterval)
+	}
+
 	log.Printf("myevent-back listening on :%s", cfg.AppPort)
 	go func() {
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -125,6 +129,27 @@ func main() {
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("http server shutdown error: %v", err)
+	}
+}
+
+func startGiftPendingSweeper(ctx context.Context, service *services.GiftTransactionService, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			expired, err := service.ExpirePending(context.Background())
+			if err != nil {
+				log.Printf("gift pending sweeper failed: %v", err)
+				continue
+			}
+			if expired > 0 {
+				log.Printf("gift pending sweeper expired %d transaction(s)", expired)
+			}
+		}
 	}
 }
 

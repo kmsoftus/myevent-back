@@ -32,7 +32,7 @@ func (s *GuestService) Create(ctx context.Context, userID, eventID string, input
 	if _, err := s.ensureEventOwnership(ctx, userID, eventID); err != nil {
 		return nil, err
 	}
-	if err := validateGuestPayload(input.Name, input.Email, input.MaxCompanions); err != nil {
+	if err := validateGuestPayload(input.Name, input.Email, input.MaxCompanions, input.Notes); err != nil {
 		return nil, err
 	}
 
@@ -131,7 +131,7 @@ func (s *GuestService) Update(ctx context.Context, userID, eventID, guestID stri
 	nextMaxCompanions := coalesceInt(input.MaxCompanions, guest.MaxCompanions)
 	nextNotes := coalesceString(input.Notes, guest.Notes)
 
-	if err := validateGuestPayload(nextName, nextEmail, nextMaxCompanions); err != nil {
+	if err := validateGuestPayload(nextName, nextEmail, nextMaxCompanions, nextNotes); err != nil {
 		return nil, err
 	}
 
@@ -187,12 +187,15 @@ func (s *GuestService) ensureEventOwnership(ctx context.Context, userID, eventID
 	return event, nil
 }
 
-func validateGuestPayload(name, email string, maxCompanions int) error {
+func validateGuestPayload(name, email string, maxCompanions int, notes string) error {
 	if strings.TrimSpace(name) == "" {
 		return fmt.Errorf("%w: Informe o nome do convidado.", ErrValidation)
 	}
 	if maxCompanions < 0 {
 		return fmt.Errorf("%w: O numero de acompanhantes nao pode ser negativo.", ErrValidation)
+	}
+	if err := validateTextMaxLength("notes", "observacoes", notes, maxGuestNotesLength, "guest_notes_too_long"); err != nil {
+		return err
 	}
 	email = normalizeOptionalEmail(email)
 	if email != "" {
