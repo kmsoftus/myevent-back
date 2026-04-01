@@ -112,6 +112,38 @@ func (r *GuestRepository) ListByEventID(ctx context.Context, eventID string) ([]
 	return guests, rows.Err()
 }
 
+func (r *GuestRepository) CountByEventID(ctx context.Context, eventID string) (int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM guests WHERE event_id = $1`, eventID).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (r *GuestRepository) ListByEventIDPaged(ctx context.Context, eventID string, limit, offset int) ([]*models.Guest, error) {
+	rows, err := r.db.Query(ctx,
+		`SELECT `+guestColumns+` FROM guests
+		 WHERE event_id = $1
+		 ORDER BY created_at ASC
+		 LIMIT $2 OFFSET $3`,
+		eventID, limit, offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var guests []*models.Guest
+	for rows.Next() {
+		g, err := scanGuest(rows)
+		if err != nil {
+			return nil, err
+		}
+		guests = append(guests, g)
+	}
+	return guests, rows.Err()
+}
+
 func (r *GuestRepository) GetByID(ctx context.Context, id string) (*models.Guest, error) {
 	row := r.db.QueryRow(ctx, `SELECT `+guestColumns+` FROM guests WHERE id = $1`, id)
 	g, err := scanGuest(row)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -29,7 +30,7 @@ func (s *AuthService) ForgotPassword(ctx context.Context, email string) (string,
 
 	user, err := s.users.GetByEmail(ctx, email)
 	if err != nil {
-		if err == repositories.ErrNotFound {
+		if errors.Is(err, repositories.ErrNotFound) {
 			return forgotPasswordSuccessMessage, nil
 		}
 		return "", err
@@ -88,7 +89,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, password string)
 	now := time.Now().UTC()
 	resetToken, err := s.passwordResetTokens.Consume(ctx, hashPasswordResetToken(token), now)
 	if err != nil {
-		if err == repositories.ErrNotFound {
+		if errors.Is(err, repositories.ErrNotFound) {
 			return "", NewValidationError(
 				"Este link de recuperacao e invalido ou expirou.",
 				"auth_reset_token_invalid",
@@ -104,7 +105,7 @@ func (s *AuthService) ResetPassword(ctx context.Context, token, password string)
 	}
 
 	if err := s.users.UpdatePassword(ctx, resetToken.UserID, passwordHash, now); err != nil {
-		if err == repositories.ErrNotFound {
+		if errors.Is(err, repositories.ErrNotFound) {
 			return "", NewValidationError(
 				"Este link de recuperacao e invalido ou expirou.",
 				"auth_reset_token_invalid",
@@ -136,9 +137,16 @@ func buildPasswordResetURL(baseURL, rawToken string) (string, error) {
 		return "", fmt.Errorf("invalid password reset url")
 	}
 
-	query := parsedURL.Query()
-	query.Set("token", rawToken)
-	parsedURL.RawQuery = query.Encode()
+	basePath := strings.TrimRight(parsedURL.Path, "/")
+	if basePath == "" {
+		basePath = "/"
+	}
+
+	if basePath == "/" {
+		parsedURL.Path = "/" + url.PathEscape(rawToken)
+	} else {
+		parsedURL.Path = basePath + "/" + url.PathEscape(rawToken)
+	}
 
 	return parsedURL.String(), nil
 }

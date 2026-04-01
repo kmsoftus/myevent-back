@@ -40,6 +40,8 @@ type EventRepository interface {
 type GuestRepository interface {
 	Create(ctx context.Context, guest *models.Guest) error
 	ListByEventID(ctx context.Context, eventID string) ([]*models.Guest, error)
+	CountByEventID(ctx context.Context, eventID string) (int, error)
+	ListByEventIDPaged(ctx context.Context, eventID string, limit, offset int) ([]*models.Guest, error)
 	GetByID(ctx context.Context, id string) (*models.Guest, error)
 	GetByInviteCode(ctx context.Context, inviteCode string) (*models.Guest, error)
 	GetByShortCode(ctx context.Context, eventID, shortCode string) (*models.Guest, error)
@@ -52,6 +54,8 @@ type GuestRepository interface {
 type RSVPRepository interface {
 	Upsert(ctx context.Context, rsvp *models.RSVP) error
 	ListByEventID(ctx context.Context, eventID string) ([]*models.RSVP, error)
+	CountByEventID(ctx context.Context, eventID string) (int, error)
+	ListByEventIDPaged(ctx context.Context, eventID string, limit, offset int) ([]*models.RSVP, error)
 	GetByGuestID(ctx context.Context, guestID string) (*models.RSVP, error)
 }
 

@@ -73,12 +73,30 @@ func (s *GuestService) Create(ctx context.Context, userID, eventID string, input
 	return created, nil
 }
 
-func (s *GuestService) ListByEvent(ctx context.Context, userID, eventID string) ([]*models.Guest, error) {
+func (s *GuestService) ListByEvent(ctx context.Context, userID, eventID string, page, pageSize int) (*PagedResult[*models.Guest], error) {
 	if _, err := s.ensureEventOwnership(ctx, userID, eventID); err != nil {
 		return nil, err
 	}
 
-	return s.guests.ListByEventID(ctx, eventID)
+	pagination := normalizePagination(page, pageSize)
+
+	total, err := s.guests.CountByEventID(ctx, eventID)
+	if err != nil {
+		return nil, err
+	}
+
+	guests, err := s.guests.ListByEventIDPaged(ctx, eventID, pagination.PageSize, pagination.Offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PagedResult[*models.Guest]{
+		Items:      guests,
+		Total:      total,
+		Page:       pagination.Page,
+		PageSize:   pagination.PageSize,
+		TotalPages: totalPages(total, pagination.PageSize),
+	}, nil
 }
 
 func (s *GuestService) GetByID(ctx context.Context, userID, eventID, guestID string) (*models.Guest, error) {

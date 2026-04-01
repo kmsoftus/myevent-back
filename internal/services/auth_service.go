@@ -7,6 +7,7 @@ import (
 	"net/mail"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/uuid"
 
@@ -289,15 +290,43 @@ func validateContactPhone(contactPhone string) error {
 }
 
 func validatePassword(password string) error {
-	if len(strings.TrimSpace(password)) < 8 {
+	password = strings.TrimSpace(password)
+
+	if len(password) < 8 {
 		return NewValidationError(
 			"A senha deve ter pelo menos 8 caracteres.",
 			"auth_password_too_short",
 			FieldError{Field: "password", Message: "A senha deve ter pelo menos 8 caracteres."},
 		)
 	}
+	if !containsLetterAndDigit(password) {
+		return NewValidationError(
+			"A senha deve incluir pelo menos uma letra e um numero.",
+			"auth_password_complexity_required",
+			FieldError{Field: "password", Message: "A senha deve incluir pelo menos uma letra e um numero."},
+		)
+	}
 
 	return nil
+}
+
+func containsLetterAndDigit(value string) bool {
+	hasLetter := false
+	hasDigit := false
+
+	for _, char := range value {
+		if unicode.IsLetter(char) {
+			hasLetter = true
+		}
+		if unicode.IsDigit(char) {
+			hasDigit = true
+		}
+		if hasLetter && hasDigit {
+			return true
+		}
+	}
+
+	return false
 }
 
 func normalizeEmail(email string) string {

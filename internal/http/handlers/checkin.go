@@ -47,16 +47,23 @@ func (h *CheckInHandler) ListGuests(w nethttp.ResponseWriter, r *nethttp.Request
 		return
 	}
 
-	guests, err := h.service.ListGuests(r.Context(), userID, chi.URLParam(r, "eventId"))
+	page, pageSize := apphttp.ReadPagination(r)
+	guests, err := h.service.ListGuests(r.Context(), userID, chi.URLParam(r, "eventId"), page, pageSize)
 	if err != nil {
 		apphttp.MapError(w, err)
 		return
 	}
 
-	response := make([]dto.GuestResponse, 0, len(guests))
-	for _, guest := range guests {
+	response := make([]dto.GuestResponse, 0, len(guests.Items))
+	for _, guest := range guests.Items {
 		response = append(response, dto.NewGuestResponse(guest))
 	}
 
-	apphttp.WriteJSON(w, nethttp.StatusOK, response)
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.PaginatedResponse[dto.GuestResponse]{
+		Items:      response,
+		Total:      guests.Total,
+		Page:       guests.Page,
+		PageSize:   guests.PageSize,
+		TotalPages: guests.TotalPages,
+	})
 }

@@ -5,8 +5,8 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"myevent-back/internal/models"
 	"myevent-back/internal/repositories"
@@ -71,6 +71,49 @@ func (r *RSVPRepository) ListByEventID(ctx context.Context, eventID string) ([]*
 	rows, err := r.db.Query(ctx,
 		`SELECT id, event_id, guest_id, status, companions_count, companion_names, message, responded_at, created_at, updated_at
 		 FROM rsvps WHERE event_id = $1 ORDER BY created_at ASC`, eventID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var rsvps []*models.RSVP
+	for rows.Next() {
+		var rv models.RSVP
+		var nameArray pgtype.Array[string]
+		if err := rows.Scan(
+			&rv.ID, &rv.EventID, &rv.GuestID, &rv.Status,
+			&rv.CompanionsCount, &nameArray, &rv.Message, &rv.RespondedAt,
+			&rv.CreatedAt, &rv.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		if nameArray.Valid {
+			rv.CompanionNames = nameArray.Elements
+		} else {
+			rv.CompanionNames = []string{}
+		}
+		rsvps = append(rsvps, &rv)
+	}
+	return rsvps, rows.Err()
+}
+
+func (r *RSVPRepository) CountByEventID(ctx context.Context, eventID string) (int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM rsvps WHERE event_id = $1`, eventID).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (r *RSVPRepository) ListByEventIDPaged(ctx context.Context, eventID string, limit, offset int) ([]*models.RSVP, error) {
+	rows, err := r.db.Query(ctx,
+		`SELECT id, event_id, guest_id, status, companions_count, companion_names, message, responded_at, created_at, updated_at
+		 FROM rsvps
+		 WHERE event_id = $1
+		 ORDER BY created_at ASC
+		 LIMIT $2 OFFSET $3`,
+		eventID, limit, offset,
 	)
 	if err != nil {
 		return nil, err

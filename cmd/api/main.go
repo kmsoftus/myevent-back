@@ -2,9 +2,14 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -96,9 +101,30 @@ func main() {
 		uploadService,
 	)
 
+	server := &http.Server{
+		Addr:              ":" + cfg.AppPort,
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	serverCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	log.Printf("myevent-back listening on :%s", cfg.AppPort)
-	if err := http.ListenAndServe(":"+cfg.AppPort, router); err != nil {
-		log.Fatal(err)
+	go func() {
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("http server error: %v", err)
+		}
+	}()
+
+	<-serverCtx.Done()
+	stop()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("http server shutdown error: %v", err)
 	}
 }
 

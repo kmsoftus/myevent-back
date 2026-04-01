@@ -76,12 +76,30 @@ func (s *CheckInService) fetchCompanionNames(ctx context.Context, guestID string
 	return rsvp.CompanionNames
 }
 
-func (s *CheckInService) ListGuests(ctx context.Context, userID, eventID string) ([]*models.Guest, error) {
+func (s *CheckInService) ListGuests(ctx context.Context, userID, eventID string, page, pageSize int) (*PagedResult[*models.Guest], error) {
 	if _, err := s.ensureEventOwnership(ctx, userID, eventID); err != nil {
 		return nil, err
 	}
 
-	return s.guests.ListByEventID(ctx, eventID)
+	pagination := normalizePagination(page, pageSize)
+
+	total, err := s.guests.CountByEventID(ctx, eventID)
+	if err != nil {
+		return nil, err
+	}
+
+	guests, err := s.guests.ListByEventIDPaged(ctx, eventID, pagination.PageSize, pagination.Offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PagedResult[*models.Guest]{
+		Items:      guests,
+		Total:      total,
+		Page:       pagination.Page,
+		PageSize:   pagination.PageSize,
+		TotalPages: totalPages(total, pagination.PageSize),
+	}, nil
 }
 
 func (s *CheckInService) resolveGuest(ctx context.Context, eventID string, input dto.CheckInRequest) (*models.Guest, error) {

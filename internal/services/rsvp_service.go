@@ -170,12 +170,19 @@ func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.C
 	}, nil
 }
 
-func (s *RSVPService) ListByEvent(ctx context.Context, userID, eventID string) ([]RSVPDetails, error) {
+func (s *RSVPService) ListByEvent(ctx context.Context, userID, eventID string, page, pageSize int) (*PagedResult[RSVPDetails], error) {
 	if _, err := s.ensureEventOwnership(ctx, userID, eventID); err != nil {
 		return nil, err
 	}
 
-	rsvps, err := s.rsvps.ListByEventID(ctx, eventID)
+	pagination := normalizePagination(page, pageSize)
+
+	total, err := s.rsvps.CountByEventID(ctx, eventID)
+	if err != nil {
+		return nil, err
+	}
+
+	rsvps, err := s.rsvps.ListByEventIDPaged(ctx, eventID, pagination.PageSize, pagination.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +203,13 @@ func (s *RSVPService) ListByEvent(ctx context.Context, userID, eventID string) (
 		})
 	}
 
-	return response, nil
+	return &PagedResult[RSVPDetails]{
+		Items:      response,
+		Total:      total,
+		Page:       pagination.Page,
+		PageSize:   pagination.PageSize,
+		TotalPages: totalPages(total, pagination.PageSize),
+	}, nil
 }
 
 func (s *RSVPService) ensureEventOwnership(ctx context.Context, userID, eventID string) (*models.Event, error) {

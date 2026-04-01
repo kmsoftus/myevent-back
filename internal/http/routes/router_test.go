@@ -30,7 +30,7 @@ func TestPhaseOneFlow(t *testing.T) {
 	registerBody := map[string]any{
 		"name":           "Kaleb",
 		"email":          "kaleb@example.com",
-		"password":       "12345678",
+		"password":       "Senha123",
 		"accepted_terms": true,
 	}
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", registerBody)
@@ -74,8 +74,8 @@ func TestPhaseOneFlow(t *testing.T) {
 		Status string `json:"status"`
 	}
 	decodeBody(t, createEventResponse, &eventPayload)
-	if eventPayload.Status != "draft" {
-		t.Fatalf("expected draft status, got %s", eventPayload.Status)
+	if eventPayload.Status != "published" {
+		t.Fatalf("expected published status, got %s", eventPayload.Status)
 	}
 
 	updateEventResponse := performJSONRequest(t, router, http.MethodPatch, "/v1/events/"+eventPayload.ID, authPayload.Token, map[string]any{
@@ -142,10 +142,19 @@ func TestPhaseOneFlow(t *testing.T) {
 		t.Fatalf("expected list guests status 200, got %d", listGuestsResponse.Code)
 	}
 
-	var guestsPayload []map[string]any
+	var guestsPayload struct {
+		Items      []map[string]any `json:"items"`
+		Page       int              `json:"page"`
+		PageSize   int              `json:"page_size"`
+		Total      int              `json:"total"`
+		TotalPages int              `json:"total_pages"`
+	}
 	decodeBody(t, listGuestsResponse, &guestsPayload)
-	if len(guestsPayload) != 1 {
-		t.Fatalf("expected 1 guest, got %d", len(guestsPayload))
+	if len(guestsPayload.Items) != 1 {
+		t.Fatalf("expected 1 guest, got %d", len(guestsPayload.Items))
+	}
+	if guestsPayload.Page != 1 || guestsPayload.PageSize != 100 || guestsPayload.Total != 1 || guestsPayload.TotalPages != 1 {
+		t.Fatalf("unexpected guests pagination payload: %+v", guestsPayload)
 	}
 
 	submitRSVPResponse := performJSONRequest(t, router, http.MethodPost, "/v1/public/events/"+eventPayload.Slug+"/rsvp", "", map[string]any{
@@ -177,10 +186,19 @@ func TestPhaseOneFlow(t *testing.T) {
 		t.Fatalf("expected list RSVPs status 200, got %d", listRSVPsResponse.Code)
 	}
 
-	var rsvpsPayload []map[string]any
+	var rsvpsPayload struct {
+		Items      []map[string]any `json:"items"`
+		Page       int              `json:"page"`
+		PageSize   int              `json:"page_size"`
+		Total      int              `json:"total"`
+		TotalPages int              `json:"total_pages"`
+	}
 	decodeBody(t, listRSVPsResponse, &rsvpsPayload)
-	if len(rsvpsPayload) != 1 {
-		t.Fatalf("expected 1 RSVP, got %d", len(rsvpsPayload))
+	if len(rsvpsPayload.Items) != 1 {
+		t.Fatalf("expected 1 RSVP, got %d", len(rsvpsPayload.Items))
+	}
+	if rsvpsPayload.Page != 1 || rsvpsPayload.PageSize != 100 || rsvpsPayload.Total != 1 || rsvpsPayload.TotalPages != 1 {
+		t.Fatalf("unexpected RSVPs pagination payload: %+v", rsvpsPayload)
 	}
 
 	dashboardResponse := performJSONRequest(t, router, http.MethodGet, "/v1/events/"+eventPayload.ID+"/dashboard", authPayload.Token, nil)
@@ -231,7 +249,7 @@ func TestPhaseThreeFlow(t *testing.T) {
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":           "Kaleb",
 		"email":          "kaleb-phase3@example.com",
-		"password":       "12345678",
+		"password":       "Senha123",
 		"accepted_terms": true,
 	})
 	if registerResponse.Code != http.StatusCreated {
@@ -301,8 +319,21 @@ func TestPhaseThreeFlow(t *testing.T) {
 	duplicateCheckInResponse := performJSONRequest(t, router, http.MethodPost, "/v1/events/"+eventPayload.ID+"/checkin", authPayload.Token, map[string]any{
 		"guest_id": guestPayload.ID,
 	})
-	if duplicateCheckInResponse.Code != http.StatusConflict {
-		t.Fatalf("expected duplicate check-in status 409, got %d", duplicateCheckInResponse.Code)
+	if duplicateCheckInResponse.Code != http.StatusOK {
+		t.Fatalf("expected duplicate check-in status 200, got %d", duplicateCheckInResponse.Code)
+	}
+
+	var duplicateCheckInPayload struct {
+		Success bool `json:"success"`
+		Guest   struct {
+			ID               string `json:"id"`
+			AlreadyCheckedIn bool   `json:"already_checked_in"`
+			CheckedInAt      string `json:"checked_in_at"`
+		} `json:"guest"`
+	}
+	decodeBody(t, duplicateCheckInResponse, &duplicateCheckInPayload)
+	if !duplicateCheckInPayload.Success || !duplicateCheckInPayload.Guest.AlreadyCheckedIn || duplicateCheckInPayload.Guest.ID != guestPayload.ID || duplicateCheckInPayload.Guest.CheckedInAt == "" {
+		t.Fatalf("unexpected duplicate check-in payload: %+v", duplicateCheckInPayload)
 	}
 
 	listCheckInGuestsResponse := performJSONRequest(t, router, http.MethodGet, "/v1/events/"+eventPayload.ID+"/checkin/guests", authPayload.Token, nil)
@@ -310,13 +341,22 @@ func TestPhaseThreeFlow(t *testing.T) {
 		t.Fatalf("expected check-in guests status 200, got %d", listCheckInGuestsResponse.Code)
 	}
 
-	var checkInGuestsPayload []map[string]any
-	decodeBody(t, listCheckInGuestsResponse, &checkInGuestsPayload)
-	if len(checkInGuestsPayload) != 1 {
-		t.Fatalf("expected 1 guest in check-in list, got %d", len(checkInGuestsPayload))
+	var checkInGuestsPayload struct {
+		Items      []map[string]any `json:"items"`
+		Page       int              `json:"page"`
+		PageSize   int              `json:"page_size"`
+		Total      int              `json:"total"`
+		TotalPages int              `json:"total_pages"`
 	}
-	if checkInGuestsPayload[0]["checked_in_at"] == nil {
-		t.Fatalf("expected checked_in_at in guest list payload, got %+v", checkInGuestsPayload[0])
+	decodeBody(t, listCheckInGuestsResponse, &checkInGuestsPayload)
+	if len(checkInGuestsPayload.Items) != 1 {
+		t.Fatalf("expected 1 guest in check-in list, got %d", len(checkInGuestsPayload.Items))
+	}
+	if checkInGuestsPayload.Page != 1 || checkInGuestsPayload.PageSize != 100 || checkInGuestsPayload.Total != 1 || checkInGuestsPayload.TotalPages != 1 {
+		t.Fatalf("unexpected check-in guests pagination payload: %+v", checkInGuestsPayload)
+	}
+	if checkInGuestsPayload.Items[0]["checked_in_at"] == nil {
+		t.Fatalf("expected checked_in_at in guest list payload, got %+v", checkInGuestsPayload.Items[0])
 	}
 
 	createGiftResponse := performJSONRequest(t, router, http.MethodPost, "/v1/events/"+eventPayload.ID+"/gifts", authPayload.Token, map[string]any{
@@ -377,10 +417,12 @@ func TestPhaseThreeFlow(t *testing.T) {
 		t.Fatalf("expected public gifts status 200, got %d", publicGiftsResponse.Code)
 	}
 
-	var publicGiftsPayload []map[string]any
+	var publicGiftsPayload struct {
+		Items []map[string]any `json:"items"`
+	}
 	decodeBody(t, publicGiftsResponse, &publicGiftsPayload)
-	if len(publicGiftsPayload) != 2 {
-		t.Fatalf("expected 2 public gifts, got %d", len(publicGiftsPayload))
+	if len(publicGiftsPayload.Items) != 2 {
+		t.Fatalf("expected 2 public gifts, got %d", len(publicGiftsPayload.Items))
 	}
 
 	reserveGiftResponse := performJSONRequest(t, router, http.MethodPost, "/v1/public/events/"+eventPayload.Slug+"/gifts/"+giftOnePayload.ID+"/reserve", "", map[string]any{
@@ -493,7 +535,7 @@ func TestPhaseFourFlow(t *testing.T) {
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":           "Kaleb",
 		"email":          "kaleb-phase4@example.com",
-		"password":       "12345678",
+		"password":       "Senha123",
 		"accepted_terms": true,
 	})
 	if registerResponse.Code != http.StatusCreated {
@@ -643,7 +685,7 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 	invalidRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":           "Kaleb",
 		"email":          "email-invalido",
-		"password":       "12345678",
+		"password":       "Senha123",
 		"accepted_terms": true,
 	})
 	if invalidRegisterResponse.Code != http.StatusBadRequest {
@@ -672,7 +714,7 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 	missingTermsResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":     "Kaleb",
 		"email":    "kaleb-sem-termos@example.com",
-		"password": "12345678",
+		"password": "Senha123",
 	})
 	if missingTermsResponse.Code != http.StatusBadRequest {
 		t.Fatalf("expected missing terms status 400, got %d", missingTermsResponse.Code)
@@ -699,7 +741,7 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 	firstRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":           "Kaleb",
 		"email":          "kaleb-auth@example.com",
-		"password":       "12345678",
+		"password":       "Senha123",
 		"accepted_terms": true,
 	})
 	if firstRegisterResponse.Code != http.StatusCreated {
@@ -709,7 +751,7 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 	duplicateRegisterResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":           "Kaleb",
 		"email":          "kaleb-auth@example.com",
-		"password":       "12345678",
+		"password":       "Senha123",
 		"accepted_terms": true,
 	})
 	if duplicateRegisterResponse.Code != http.StatusConflict {
@@ -771,14 +813,14 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 		t.Fatalf("parse reset url: %v", err)
 	}
 
-	resetToken := resetURL.Query().Get("token")
+	resetToken := strings.TrimPrefix(resetURL.EscapedPath(), "/redefinir-senha/")
 	if resetToken == "" {
 		t.Fatal("expected reset token in reset URL")
 	}
 
 	resetPasswordResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/reset-password", "", map[string]any{
 		"token":    resetToken,
-		"password": "87654321",
+		"password": "NovaSenha9",
 	})
 	if resetPasswordResponse.Code != http.StatusOK {
 		t.Fatalf("expected reset password status 200, got %d", resetPasswordResponse.Code)
@@ -786,7 +828,7 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 
 	reuseResetResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/reset-password", "", map[string]any{
 		"token":    resetToken,
-		"password": "11223344",
+		"password": "OutraSenha9",
 	})
 	if reuseResetResponse.Code != http.StatusBadRequest {
 		t.Fatalf("expected reused reset token status 400, got %d", reuseResetResponse.Code)
@@ -794,7 +836,7 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 
 	oldPasswordLoginResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/login", "", map[string]any{
 		"email":    "kaleb-auth@example.com",
-		"password": "12345678",
+		"password": "Senha123",
 	})
 	if oldPasswordLoginResponse.Code != http.StatusUnauthorized {
 		t.Fatalf("expected old password login to fail, got %d", oldPasswordLoginResponse.Code)
@@ -802,7 +844,7 @@ func TestAuthResponsesAreLocalizedAndDetailed(t *testing.T) {
 
 	newPasswordLoginResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/login", "", map[string]any{
 		"email":    "kaleb-auth@example.com",
-		"password": "87654321",
+		"password": "NovaSenha9",
 	})
 	if newPasswordLoginResponse.Code != http.StatusOK {
 		t.Fatalf("expected login with new password to succeed, got %d", newPasswordLoginResponse.Code)
@@ -815,7 +857,7 @@ func TestRegisterSendsTelegramNotification(t *testing.T) {
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":             "Kaleb",
 		"email":            "kaleb-telegram@example.com",
-		"password":         "12345678",
+		"password":         "Senha123",
 		"contact_phone":    "(11) 99999-9999",
 		"accepted_terms":   true,
 		"marketing_opt_in": true,
@@ -875,7 +917,7 @@ func TestUpdateProfileUpdatesNameAndContactPhone(t *testing.T) {
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":           "Kaleb",
 		"email":          "kaleb-profile@example.com",
-		"password":       "12345678",
+		"password":       "Senha123",
 		"accepted_terms": true,
 	})
 	if registerResponse.Code != http.StatusCreated {
@@ -937,7 +979,7 @@ func TestCreateEventRejectsPastDate(t *testing.T) {
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":           "Kaleb",
 		"email":          "kaleb-past-date@example.com",
-		"password":       "12345678",
+		"password":       "Senha123",
 		"accepted_terms": true,
 	})
 	if registerResponse.Code != http.StatusCreated {
@@ -975,7 +1017,7 @@ func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":           "Kaleb",
 		"email":          "kaleb-delete@example.com",
-		"password":       "12345678",
+		"password":       "Senha123",
 		"accepted_terms": true,
 	})
 	if registerResponse.Code != http.StatusCreated {
@@ -1043,7 +1085,7 @@ func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
 
 	loginResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/login", "", map[string]any{
 		"email":    "kaleb-delete@example.com",
-		"password": "12345678",
+		"password": "Senha123",
 	})
 	if loginResponse.Code != http.StatusUnauthorized {
 		t.Fatalf("expected deleted account login to fail, got %d", loginResponse.Code)
@@ -1056,7 +1098,7 @@ func TestDeleteAccountRequiresMatchingConfirmationEmail(t *testing.T) {
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
 		"name":           "Kaleb",
 		"email":          "kaleb-delete-confirm@example.com",
-		"password":       "12345678",
+		"password":       "Senha123",
 		"accepted_terms": true,
 	})
 	if registerResponse.Code != http.StatusCreated {

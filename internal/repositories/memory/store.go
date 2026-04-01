@@ -419,6 +419,37 @@ func (r *guestRepository) ListByEventID(_ context.Context, eventID string) ([]*m
 	return guests, nil
 }
 
+func (r *guestRepository) CountByEventID(_ context.Context, eventID string) (int, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	return len(r.store.guestIDsByEvent[eventID]), nil
+}
+
+func (r *guestRepository) ListByEventIDPaged(_ context.Context, eventID string, limit, offset int) ([]*models.Guest, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	guestIDs := r.store.guestIDsByEvent[eventID]
+	guests := make([]*models.Guest, 0, len(guestIDs))
+	for guestID := range guestIDs {
+		guests = append(guests, cloneGuest(r.store.guests[guestID]))
+	}
+
+	sort.Slice(guests, func(i, j int) bool {
+		return guests[i].CreatedAt.Before(guests[j].CreatedAt)
+	})
+
+	if offset >= len(guests) {
+		return []*models.Guest{}, nil
+	}
+	end := offset + limit
+	if end > len(guests) {
+		end = len(guests)
+	}
+	return guests[offset:end], nil
+}
+
 func (r *guestRepository) GetByID(_ context.Context, id string) (*models.Guest, error) {
 	r.store.mu.RLock()
 	defer r.store.mu.RUnlock()
@@ -608,6 +639,37 @@ func (r *rsvpRepository) ListByEventID(_ context.Context, eventID string) ([]*mo
 	})
 
 	return rsvps, nil
+}
+
+func (r *rsvpRepository) CountByEventID(_ context.Context, eventID string) (int, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	return len(r.store.rsvpIDsByEvent[eventID]), nil
+}
+
+func (r *rsvpRepository) ListByEventIDPaged(_ context.Context, eventID string, limit, offset int) ([]*models.RSVP, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	rsvpIDs := r.store.rsvpIDsByEvent[eventID]
+	rsvps := make([]*models.RSVP, 0, len(rsvpIDs))
+	for rsvpID := range rsvpIDs {
+		rsvps = append(rsvps, cloneRSVP(r.store.rsvps[rsvpID]))
+	}
+
+	sort.Slice(rsvps, func(i, j int) bool {
+		return rsvps[i].RespondedAt.After(rsvps[j].RespondedAt)
+	})
+
+	if offset >= len(rsvps) {
+		return []*models.RSVP{}, nil
+	}
+	end := offset + limit
+	if end > len(rsvps) {
+		end = len(rsvps)
+	}
+	return rsvps[offset:end], nil
 }
 
 func (r *giftRepository) Create(_ context.Context, gift *models.Gift) error {

@@ -61,16 +61,23 @@ func (h *RSVPHandler) ListByEvent(w nethttp.ResponseWriter, r *nethttp.Request) 
 		return
 	}
 
-	details, err := h.service.ListByEvent(r.Context(), userID, chi.URLParam(r, "eventId"))
+	page, pageSize := apphttp.ReadPagination(r)
+	details, err := h.service.ListByEvent(r.Context(), userID, chi.URLParam(r, "eventId"), page, pageSize)
 	if err != nil {
 		apphttp.MapError(w, err)
 		return
 	}
 
-	response := make([]dto.RSVPResponse, 0, len(details))
-	for _, item := range details {
+	response := make([]dto.RSVPResponse, 0, len(details.Items))
+	for _, item := range details.Items {
 		response = append(response, dto.NewRSVPResponse(item.RSVP, item.Guest))
 	}
 
-	apphttp.WriteJSON(w, nethttp.StatusOK, response)
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.PaginatedResponse[dto.RSVPResponse]{
+		Items:      response,
+		Total:      details.Total,
+		Page:       details.Page,
+		PageSize:   details.PageSize,
+		TotalPages: details.TotalPages,
+	})
 }
