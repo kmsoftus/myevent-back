@@ -12,6 +12,11 @@ import (
 	"myevent-back/internal/repositories"
 )
 
+type CheckInResult struct {
+	Guest            *models.Guest
+	AlreadyCheckedIn bool
+}
+
 type CheckInService struct {
 	events repositories.EventRepository
 	guests repositories.GuestRepository
@@ -24,7 +29,7 @@ func NewCheckInService(events repositories.EventRepository, guests repositories.
 	}
 }
 
-func (s *CheckInService) CheckIn(ctx context.Context, userID, eventID string, input dto.CheckInRequest) (*models.Guest, error) {
+func (s *CheckInService) CheckIn(ctx context.Context, userID, eventID string, input dto.CheckInRequest) (*CheckInResult, error) {
 	if _, err := s.ensureEventOwnership(ctx, userID, eventID); err != nil {
 		return nil, err
 	}
@@ -35,7 +40,7 @@ func (s *CheckInService) CheckIn(ctx context.Context, userID, eventID string, in
 	}
 
 	if guest.CheckedInAt != nil {
-		return nil, fmt.Errorf("%w: Convidado ja realizou check-in.", ErrConflict)
+		return &CheckInResult{Guest: guest, AlreadyCheckedIn: true}, nil
 	}
 
 	now := time.Now().UTC()
@@ -52,7 +57,7 @@ func (s *CheckInService) CheckIn(ctx context.Context, userID, eventID string, in
 		return nil, err
 	}
 
-	return guest, nil
+	return &CheckInResult{Guest: guest, AlreadyCheckedIn: false}, nil
 }
 
 func (s *CheckInService) ListGuests(ctx context.Context, userID, eventID string) ([]*models.Guest, error) {

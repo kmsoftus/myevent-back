@@ -783,6 +783,9 @@ func cloneGuest(guest *models.Guest) *models.Guest {
 
 func cloneRSVP(rsvp *models.RSVP) *models.RSVP {
 	copy := *rsvp
+	if rsvp.CompanionNames != nil {
+		copy.CompanionNames = append([]string(nil), rsvp.CompanionNames...)
+	}
 	return &copy
 }
 

@@ -122,7 +122,7 @@ func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.C
 		}
 	}
 
-	status, companionsCount, err := validateRSVPInput(input.Status, input.CompanionsCount, guest.MaxCompanions)
+	status, companionsCount, companionNames, err := validateRSVPInput(input.Status, input.CompanionsCount, input.CompanionNames, guest.MaxCompanions)
 	if err != nil {
 		return nil, err
 	}
@@ -134,6 +134,7 @@ func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.C
 		GuestID:         guest.ID,
 		Status:          status,
 		CompanionsCount: companionsCount,
+		CompanionNames:  companionNames,
 		Message:         strings.TrimSpace(input.Message),
 		RespondedAt:     now,
 		CreatedAt:       now,
@@ -264,26 +265,34 @@ func isDigitsOnly(s string) bool {
 	return true
 }
 
-func validateRSVPInput(status string, companionsCount, maxCompanions int) (string, int, error) {
+func validateRSVPInput(status string, companionsCount int, companionNames []string, maxCompanions int) (string, int, []string, error) {
 	status = strings.ToLower(strings.TrimSpace(status))
 	switch status {
 	case "confirmed":
 		if companionsCount < 0 {
-			return "", 0, fmt.Errorf("%w: O numero de acompanhantes nao pode ser negativo.", ErrValidation)
+			return "", 0, nil, fmt.Errorf("%w: O numero de acompanhantes nao pode ser negativo.", ErrValidation)
 		}
 		if companionsCount > maxCompanions {
-			return "", 0, fmt.Errorf("%w: O numero de acompanhantes ultrapassa o limite do convidado.", ErrValidation)
+			return "", 0, nil, fmt.Errorf("%w: O numero de acompanhantes ultrapassa o limite do convidado.", ErrValidation)
 		}
-		return status, companionsCount, nil
+		// Normalize companion names: trim, drop empties, cap at companionsCount
+		names := make([]string, 0, companionsCount)
+		for _, n := range companionNames {
+			n = strings.TrimSpace(n)
+			if n != "" {
+				names = append(names, n)
+			}
+		}
+		if len(names) > companionsCount {
+			names = names[:companionsCount]
+		}
+		return status, companionsCount, names, nil
 	case "declined":
-		if companionsCount < 0 {
-			return "", 0, fmt.Errorf("%w: O numero de acompanhantes nao pode ser negativo.", ErrValidation)
-		}
 		if companionsCount > 0 {
-			return "", 0, fmt.Errorf("%w: Ao recusar o convite, o numero de acompanhantes deve ser 0.", ErrValidation)
+			return "", 0, nil, fmt.Errorf("%w: Ao recusar o convite, o numero de acompanhantes deve ser 0.", ErrValidation)
 		}
-		return status, 0, nil
+		return status, 0, []string{}, nil
 	default:
-		return "", 0, fmt.Errorf("%w: Status de confirmacao invalido.", ErrValidation)
+		return "", 0, nil, fmt.Errorf("%w: Status de confirmacao invalido.", ErrValidation)
 	}
 }

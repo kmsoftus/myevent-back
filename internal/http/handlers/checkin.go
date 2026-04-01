@@ -31,13 +31,13 @@ func (h *CheckInHandler) Create(w nethttp.ResponseWriter, r *nethttp.Request) {
 		return
 	}
 
-	guest, err := h.service.CheckIn(r.Context(), userID, chi.URLParam(r, "eventId"), request)
+	result, err := h.service.CheckIn(r.Context(), userID, chi.URLParam(r, "eventId"), request)
 	if err != nil {
 		apphttp.MapError(w, err)
 		return
 	}
 
-	apphttp.WriteJSON(w, nethttp.StatusOK, dto.NewCheckInResponse(guest))
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.NewCheckInResponse(result.Guest, result.AlreadyCheckedIn))
 }
 
 func (h *CheckInHandler) ListGuests(w nethttp.ResponseWriter, r *nethttp.Request) {
