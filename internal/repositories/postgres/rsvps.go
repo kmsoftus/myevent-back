@@ -2,11 +2,14 @@ package postgres
 
 import (
 	"context"
+	"errors"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"myevent-back/internal/models"
+	"myevent-back/internal/repositories"
 )
 
 type RSVPRepository struct {
@@ -37,6 +40,31 @@ func (r *RSVPRepository) Upsert(ctx context.Context, rsvp *models.RSVP) error {
 		rsvp.CreatedAt, rsvp.UpdatedAt,
 	)
 	return err
+}
+
+func (r *RSVPRepository) GetByGuestID(ctx context.Context, guestID string) (*models.RSVP, error) {
+	var rv models.RSVP
+	var nameArray pgtype.Array[string]
+	err := r.db.QueryRow(ctx,
+		`SELECT id, event_id, guest_id, status, companions_count, companion_names, message, responded_at, created_at, updated_at
+		 FROM rsvps WHERE guest_id = $1`, guestID,
+	).Scan(
+		&rv.ID, &rv.EventID, &rv.GuestID, &rv.Status,
+		&rv.CompanionsCount, &nameArray, &rv.Message, &rv.RespondedAt,
+		&rv.CreatedAt, &rv.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, repositories.ErrNotFound
+		}
+		return nil, err
+	}
+	if nameArray.Valid {
+		rv.CompanionNames = nameArray.Elements
+	} else {
+		rv.CompanionNames = []string{}
+	}
+	return &rv, nil
 }
 
 func (r *RSVPRepository) ListByEventID(ctx context.Context, eventID string) ([]*models.RSVP, error) {

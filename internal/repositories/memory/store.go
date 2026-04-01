@@ -578,6 +578,21 @@ func (r *rsvpRepository) Upsert(_ context.Context, rsvp *models.RSVP) error {
 	return nil
 }
 
+func (r *rsvpRepository) GetByGuestID(_ context.Context, guestID string) (*models.RSVP, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	rsvpID, ok := r.store.rsvpByGuest[guestID]
+	if !ok {
+		return nil, repositories.ErrNotFound
+	}
+	rsvp, ok := r.store.rsvps[rsvpID]
+	if !ok {
+		return nil, repositories.ErrNotFound
+	}
+	return cloneRSVP(rsvp), nil
+}
+
 func (r *rsvpRepository) ListByEventID(_ context.Context, eventID string) ([]*models.RSVP, error) {
 	r.store.mu.RLock()
 	defer r.store.mu.RUnlock()

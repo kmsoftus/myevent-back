@@ -37,7 +37,7 @@ func (h *CheckInHandler) Create(w nethttp.ResponseWriter, r *nethttp.Request) {
 		return
 	}
 
-	apphttp.WriteJSON(w, nethttp.StatusOK, dto.NewCheckInResponse(result.Guest, result.AlreadyCheckedIn))
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.NewCheckInResponse(result.Guest, result.AlreadyCheckedIn, result.CompanionNames))
 }
 
 func (h *CheckInHandler) ListGuests(w nethttp.ResponseWriter, r *nethttp.Request) {

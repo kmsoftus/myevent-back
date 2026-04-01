@@ -15,17 +15,20 @@ import (
 type CheckInResult struct {
 	Guest            *models.Guest
 	AlreadyCheckedIn bool
+	CompanionNames   []string
 }
 
 type CheckInService struct {
 	events repositories.EventRepository
 	guests repositories.GuestRepository
+	rsvps  repositories.RSVPRepository
 }
 
-func NewCheckInService(events repositories.EventRepository, guests repositories.GuestRepository) *CheckInService {
+func NewCheckInService(events repositories.EventRepository, guests repositories.GuestRepository, rsvps repositories.RSVPRepository) *CheckInService {
 	return &CheckInService{
 		events: events,
 		guests: guests,
+		rsvps:  rsvps,
 	}
 }
 
@@ -39,8 +42,10 @@ func (s *CheckInService) CheckIn(ctx context.Context, userID, eventID string, in
 		return nil, err
 	}
 
+	companionNames := s.fetchCompanionNames(ctx, guest.ID)
+
 	if guest.CheckedInAt != nil {
-		return &CheckInResult{Guest: guest, AlreadyCheckedIn: true}, nil
+		return &CheckInResult{Guest: guest, AlreadyCheckedIn: true, CompanionNames: companionNames}, nil
 	}
 
 	now := time.Now().UTC()
@@ -57,7 +62,18 @@ func (s *CheckInService) CheckIn(ctx context.Context, userID, eventID string, in
 		return nil, err
 	}
 
-	return &CheckInResult{Guest: guest, AlreadyCheckedIn: false}, nil
+	return &CheckInResult{Guest: guest, AlreadyCheckedIn: false, CompanionNames: companionNames}, nil
+}
+
+func (s *CheckInService) fetchCompanionNames(ctx context.Context, guestID string) []string {
+	rsvp, err := s.rsvps.GetByGuestID(ctx, guestID)
+	if err != nil {
+		return []string{}
+	}
+	if rsvp.CompanionNames == nil {
+		return []string{}
+	}
+	return rsvp.CompanionNames
 }
 
 func (s *CheckInService) ListGuests(ctx context.Context, userID, eventID string) ([]*models.Guest, error) {

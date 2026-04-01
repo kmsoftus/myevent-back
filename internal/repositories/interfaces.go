@@ -52,6 +52,7 @@ type GuestRepository interface {
 type RSVPRepository interface {
 	Upsert(ctx context.Context, rsvp *models.RSVP) error
 	ListByEventID(ctx context.Context, eventID string) ([]*models.RSVP, error)
+	GetByGuestID(ctx context.Context, guestID string) (*models.RSVP, error)
 }
 
 type GiftRepository interface {

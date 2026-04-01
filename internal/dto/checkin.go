@@ -17,16 +17,21 @@ type CheckInResponse struct {
 }
 
 type CheckInGuestPayload struct {
-	ID             string     `json:"id"`
-	Name           string     `json:"name"`
-	ShortCode      string     `json:"short_code"`
-	RSVPStatus     string     `json:"rsvp_status"`
-	MaxCompanions  int        `json:"max_companions"`
-	CheckedInAt    *time.Time `json:"checked_in_at,omitempty"`
-	AlreadyCheckedIn bool     `json:"already_checked_in"`
+	ID               string     `json:"id"`
+	Name             string     `json:"name"`
+	ShortCode        string     `json:"short_code"`
+	RSVPStatus       string     `json:"rsvp_status"`
+	MaxCompanions    int        `json:"max_companions"`
+	CompanionNames   []string   `json:"companion_names"`
+	CheckedInAt      *time.Time `json:"checked_in_at,omitempty"`
+	AlreadyCheckedIn bool       `json:"already_checked_in"`
 }
 
-func NewCheckInResponse(guest *models.Guest, alreadyCheckedIn bool) CheckInResponse {
+func NewCheckInResponse(guest *models.Guest, alreadyCheckedIn bool, companionNames []string) CheckInResponse {
+	names := companionNames
+	if names == nil {
+		names = []string{}
+	}
 	return CheckInResponse{
 		Success: true,
 		Guest: CheckInGuestPayload{
@@ -35,6 +40,7 @@ func NewCheckInResponse(guest *models.Guest, alreadyCheckedIn bool) CheckInRespo
 			ShortCode:        guest.ShortCode,
 			RSVPStatus:       guest.RSVPStatus,
 			MaxCompanions:    guest.MaxCompanions,
+			CompanionNames:   names,
 			CheckedInAt:      guest.CheckedInAt,
 			AlreadyCheckedIn: alreadyCheckedIn,
 		},

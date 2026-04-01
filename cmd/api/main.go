@@ -64,7 +64,7 @@ func main() {
 	eventService := services.NewEventService(events)
 	guestService := services.NewGuestService(events, guests)
 	rsvpService := services.NewRSVPService(events, guests, rsvps)
-	checkInService := services.NewCheckInService(events, guests)
+	checkInService := services.NewCheckInService(events, guests, rsvps)
 	giftService := services.NewGiftService(events, gifts)
 	giftTransactionService := services.NewGiftTransactionService(events, gifts, giftTransactions)
 	dashboardService := services.NewDashboardService(events, guests, gifts)
