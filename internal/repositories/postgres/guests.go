@@ -20,14 +20,14 @@ func NewGuestRepository(db *pgxpool.Pool) *GuestRepository {
 }
 
 const guestColumns = `id, event_id, name, email, phone, invite_code, short_code, qr_code_token,
-	max_companions, rsvp_status, checked_in_at, created_at, updated_at`
+	max_companions, rsvp_status, notes, checked_in_at, created_at, updated_at`
 
 func scanGuest(row pgx.Row) (*models.Guest, error) {
 	var g models.Guest
 	err := row.Scan(
 		&g.ID, &g.EventID, &g.Name, &g.Email, &g.Phone,
 		&g.InviteCode, &g.ShortCode, &g.QRCodeToken, &g.MaxCompanions,
-		&g.RSVPStatus, &g.CheckedInAt, &g.CreatedAt, &g.UpdatedAt,
+		&g.RSVPStatus, &g.Notes, &g.CheckedInAt, &g.CreatedAt, &g.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -38,11 +38,11 @@ func scanGuest(row pgx.Row) (*models.Guest, error) {
 func (r *GuestRepository) Create(ctx context.Context, guest *models.Guest) error {
 	_, err := r.db.Exec(ctx,
 		`INSERT INTO guests (id, event_id, name, email, phone, invite_code, short_code, qr_code_token,
-			max_companions, rsvp_status, checked_in_at, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+			max_companions, rsvp_status, notes, checked_in_at, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 		guest.ID, guest.EventID, guest.Name, guest.Email, guest.Phone,
 		guest.InviteCode, guest.ShortCode, guest.QRCodeToken, guest.MaxCompanions,
-		guest.RSVPStatus, guest.CheckedInAt, guest.CreatedAt, guest.UpdatedAt,
+		guest.RSVPStatus, guest.Notes, guest.CheckedInAt, guest.CreatedAt, guest.UpdatedAt,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -151,10 +151,10 @@ func (r *GuestRepository) GetByQRCodeToken(ctx context.Context, qrCodeToken stri
 func (r *GuestRepository) Update(ctx context.Context, guest *models.Guest) error {
 	_, err := r.db.Exec(ctx,
 		`UPDATE guests SET name=$1, email=$2, phone=$3, max_companions=$4,
-			rsvp_status=$5, checked_in_at=$6, short_code=$7, updated_at=$8
-		 WHERE id=$9`,
+			rsvp_status=$5, notes=$6, checked_in_at=$7, short_code=$8, updated_at=$9
+		 WHERE id=$10`,
 		guest.Name, guest.Email, guest.Phone, guest.MaxCompanions,
-		guest.RSVPStatus, guest.CheckedInAt, guest.ShortCode, guest.UpdatedAt, guest.ID,
+		guest.RSVPStatus, guest.Notes, guest.CheckedInAt, guest.ShortCode, guest.UpdatedAt, guest.ID,
 	)
 	return err
 }

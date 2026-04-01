@@ -13,6 +13,7 @@ type Guest struct {
 	QRCodeToken   string     `json:"qr_code_token"`
 	MaxCompanions int        `json:"max_companions"`
 	RSVPStatus    string     `json:"rsvp_status"`
+	Notes         string     `json:"notes,omitempty"`
 	CheckedInAt   *time.Time `json:"checked_in_at,omitempty"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`

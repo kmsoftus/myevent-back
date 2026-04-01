@@ -51,6 +51,7 @@ func (s *GuestService) Create(ctx context.Context, userID, eventID string, input
 			QRCodeToken:   utils.RandomString(32),
 			MaxCompanions: input.MaxCompanions,
 			RSVPStatus:    "pending",
+			Notes:         strings.TrimSpace(input.Notes),
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
@@ -110,6 +111,7 @@ func (s *GuestService) Update(ctx context.Context, userID, eventID, guestID stri
 	nextEmail := coalesceString(input.Email, guest.Email)
 	nextPhone := coalesceString(input.Phone, guest.Phone)
 	nextMaxCompanions := coalesceInt(input.MaxCompanions, guest.MaxCompanions)
+	nextNotes := coalesceString(input.Notes, guest.Notes)
 
 	if err := validateGuestPayload(nextName, nextEmail, nextMaxCompanions); err != nil {
 		return nil, err
@@ -119,6 +121,7 @@ func (s *GuestService) Update(ctx context.Context, userID, eventID, guestID stri
 	guest.Email = normalizeOptionalEmail(nextEmail)
 	guest.Phone = strings.TrimSpace(nextPhone)
 	guest.MaxCompanions = nextMaxCompanions
+	guest.Notes = strings.TrimSpace(nextNotes)
 	guest.UpdatedAt = time.Now().UTC()
 
 	if err := s.guests.Update(ctx, guest); err != nil {

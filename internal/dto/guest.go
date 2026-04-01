@@ -11,6 +11,7 @@ type CreateGuestRequest struct {
 	Email         string `json:"email"`
 	Phone         string `json:"phone"`
 	MaxCompanions int    `json:"max_companions"`
+	Notes         string `json:"notes"`
 }
 
 type UpdateGuestRequest struct {
@@ -18,6 +19,7 @@ type UpdateGuestRequest struct {
 	Email         *string `json:"email"`
 	Phone         *string `json:"phone"`
 	MaxCompanions *int    `json:"max_companions"`
+	Notes         *string `json:"notes"`
 }
 
 type GuestResponse struct {
@@ -31,6 +33,7 @@ type GuestResponse struct {
 	QRCodeToken   string     `json:"qr_code_token"`
 	MaxCompanions int        `json:"max_companions"`
 	RSVPStatus    string     `json:"rsvp_status"`
+	Notes         string     `json:"notes,omitempty"`
 	CheckedInAt   *time.Time `json:"checked_in_at,omitempty"`
 }
 
@@ -46,6 +49,7 @@ func NewGuestResponse(guest *models.Guest) GuestResponse {
 		QRCodeToken:   guest.QRCodeToken,
 		MaxCompanions: guest.MaxCompanions,
 		RSVPStatus:    guest.RSVPStatus,
+		Notes:         guest.Notes,
 		CheckedInAt:   guest.CheckedInAt,
 	}
 }
