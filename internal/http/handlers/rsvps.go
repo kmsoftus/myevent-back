@@ -19,6 +19,16 @@ func NewRSVPHandler(service *services.RSVPService) *RSVPHandler {
 	return &RSVPHandler{service: service}
 }
 
+func (h *RSVPHandler) LookupPublic(w nethttp.ResponseWriter, r *nethttp.Request) {
+	code := r.URL.Query().Get("code")
+	result, err := h.service.LookupBySlug(r.Context(), chi.URLParam(r, "slug"), code)
+	if err != nil {
+		apphttp.MapError(w, err)
+		return
+	}
+	apphttp.WriteJSON(w, nethttp.StatusOK, result)
+}
+
 func (h *RSVPHandler) SearchPublic(w nethttp.ResponseWriter, r *nethttp.Request) {
 	query := r.URL.Query().Get("q")
 	candidates, err := h.service.SearchGuestsBySlug(r.Context(), chi.URLParam(r, "slug"), query)

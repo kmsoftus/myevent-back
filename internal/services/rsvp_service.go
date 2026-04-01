@@ -256,6 +256,59 @@ func (s *RSVPService) findOrCreateOpenRSVPGuest(ctx context.Context, eventID, na
 	return created, nil
 }
 
+// RSVPLookupResult holds the data returned by a public code lookup.
+type RSVPLookupResult struct {
+	GuestName      string `json:"guest_name"`
+	GuestShortCode string `json:"guest_short_code"`
+	QRCodeToken    string `json:"qr_code_token"`
+	RSVPStatus     string `json:"rsvp_status"`
+}
+
+// LookupBySlug retrieves the current RSVP status for a guest identified by short code.
+// It is used by the public RSVP page to detect already-confirmed guests and skip the form.
+func (s *RSVPService) LookupBySlug(ctx context.Context, slug, code string) (*RSVPLookupResult, error) {
+	event, err := s.events.GetBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	if event.Status != "published" {
+		return nil, ErrForbidden
+	}
+
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil, fmt.Errorf("%w: Informe o código do convite.", ErrValidation)
+	}
+
+	var guest *models.Guest
+	if isDigitsOnly(code) && len(code) >= 6 && len(code) <= 7 {
+		guest, err = s.guests.GetByShortCode(ctx, event.ID, code)
+	} else {
+		guest, err = s.guests.GetByInviteCode(ctx, code)
+	}
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	if guest.EventID != event.ID {
+		return nil, ErrNotFound
+	}
+
+	return &RSVPLookupResult{
+		GuestName:      guest.Name,
+		GuestShortCode: guest.ShortCode,
+		QRCodeToken:    guest.QRCodeToken,
+		RSVPStatus:     guest.RSVPStatus,
+	}, nil
+}
+
 func isDigitsOnly(s string) bool {
 	for _, r := range s {
 		if r < '0' || r > '9' {

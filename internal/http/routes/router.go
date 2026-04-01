@@ -84,6 +84,7 @@ func NewRouter(
 
 		r.Route("/public", func(r chi.Router) {
 			r.Get("/events/{slug}", publicEventHandler.GetBySlug)
+			r.Get("/events/{slug}/rsvp/lookup", rsvpHandler.LookupPublic)
 			r.Get("/events/{slug}/rsvp/search", rsvpHandler.SearchPublic)
 			r.Post("/events/{slug}/rsvp", rsvpHandler.SubmitPublic)
 			r.Get("/events/{slug}/gifts", giftHandler.ListPublic)
