@@ -23,6 +23,7 @@ type GiftTransactionService struct {
 	events       repositories.EventRepository
 	gifts        repositories.GiftRepository
 	transactions repositories.GiftTransactionRepository
+	atomicTxs    atomicGiftTransactionRepository
 }
 
 func NewGiftTransactionService(
@@ -30,11 +31,17 @@ func NewGiftTransactionService(
 	gifts repositories.GiftRepository,
 	transactions repositories.GiftTransactionRepository,
 ) *GiftTransactionService {
-	return &GiftTransactionService{
+	service := &GiftTransactionService{
 		events:       events,
 		gifts:        gifts,
 		transactions: transactions,
 	}
+
+	if atomicTxs, ok := transactions.(atomicGiftTransactionRepository); ok {
+		service.atomicTxs = atomicTxs
+	}
+
+	return service
 }
 
 func (s *GiftTransactionService) ReserveBySlug(ctx context.Context, slug, giftID string, input dto.CreateGiftTransactionRequest) (*GiftTransactionDetails, error) {
@@ -97,17 +104,26 @@ func (s *GiftTransactionService) Confirm(ctx context.Context, userID, eventID, t
 	gift.Status = "confirmed"
 	gift.UpdatedAt = now
 
-	if err := s.transactions.Update(ctx, transaction); err != nil {
-		if errors.Is(err, repositories.ErrNotFound) {
-			return nil, ErrNotFound
+	if s.atomicTxs != nil {
+		if err := s.atomicTxs.UpdateTransactionAndGift(ctx, transaction, gift); err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return nil, ErrNotFound
+			}
+			return nil, err
 		}
-		return nil, err
-	}
-	if err := s.gifts.Update(ctx, gift); err != nil {
-		if errors.Is(err, repositories.ErrNotFound) {
-			return nil, ErrNotFound
+	} else {
+		if err := s.transactions.Update(ctx, transaction); err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return nil, ErrNotFound
+			}
+			return nil, err
 		}
-		return nil, err
+		if err := s.gifts.Update(ctx, gift); err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return nil, ErrNotFound
+			}
+			return nil, err
+		}
 	}
 
 	return &GiftTransactionDetails{Transaction: transaction, Gift: gift}, nil
@@ -135,17 +151,26 @@ func (s *GiftTransactionService) Cancel(ctx context.Context, userID, eventID, tr
 	gift.Status = "available"
 	gift.UpdatedAt = now
 
-	if err := s.transactions.Update(ctx, transaction); err != nil {
-		if errors.Is(err, repositories.ErrNotFound) {
-			return nil, ErrNotFound
+	if s.atomicTxs != nil {
+		if err := s.atomicTxs.UpdateTransactionAndGift(ctx, transaction, gift); err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return nil, ErrNotFound
+			}
+			return nil, err
 		}
-		return nil, err
-	}
-	if err := s.gifts.Update(ctx, gift); err != nil {
-		if errors.Is(err, repositories.ErrNotFound) {
-			return nil, ErrNotFound
+	} else {
+		if err := s.transactions.Update(ctx, transaction); err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return nil, ErrNotFound
+			}
+			return nil, err
 		}
-		return nil, err
+		if err := s.gifts.Update(ctx, gift); err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return nil, ErrNotFound
+			}
+			return nil, err
+		}
 	}
 
 	return &GiftTransactionDetails{Transaction: transaction, Gift: gift}, nil
@@ -209,17 +234,31 @@ func (s *GiftTransactionService) createPublicTransaction(
 	gift.Status = nextGiftStatus
 	gift.UpdatedAt = now
 
-	if err := s.transactions.Create(ctx, transaction); err != nil {
-		if errors.Is(err, repositories.ErrConflict) {
-			return nil, ErrConflict
+	if s.atomicTxs != nil {
+		gift, err = s.atomicTxs.CreatePendingForGift(ctx, transaction, nextGiftStatus)
+		if err != nil {
+			switch {
+			case errors.Is(err, repositories.ErrNotFound):
+				return nil, ErrNotFound
+			case errors.Is(err, repositories.ErrConflict):
+				return nil, fmt.Errorf("%w: Este presente nao esta disponivel.", ErrConflict)
+			default:
+				return nil, err
+			}
 		}
-		return nil, err
-	}
-	if err := s.gifts.Update(ctx, gift); err != nil {
-		if errors.Is(err, repositories.ErrNotFound) {
-			return nil, ErrNotFound
+	} else {
+		if err := s.transactions.Create(ctx, transaction); err != nil {
+			if errors.Is(err, repositories.ErrConflict) {
+				return nil, ErrConflict
+			}
+			return nil, err
 		}
-		return nil, err
+		if err := s.gifts.Update(ctx, gift); err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return nil, ErrNotFound
+			}
+			return nil, err
+		}
 	}
 
 	return &GiftTransactionDetails{Transaction: transaction, Gift: gift}, nil

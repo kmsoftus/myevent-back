@@ -47,7 +47,7 @@ func Load() Config {
 		PasswordResetURL:   getEnv("PASSWORD_RESET_URL", strings.TrimRight(frontendURL, "/")+"/redefinir-senha"),
 		TelegramBotToken:   getEnv("TELEGRAM_BOT_TOKEN", ""),
 		TelegramGroupID:    getEnv("TELEGRAM_GROUP_ID", ""),
-		JWTSecret:          getEnv("JWT_SECRET", "super-secret"),
+		JWTSecret:          getEnv("JWT_SECRET", ""),
 		JWTExpiresIn:       getDurationEnv("JWT_EXPIRES_IN", 168*time.Hour),
 		DatabaseURL:        getEnv("DATABASE_URL", ""),
 		CORSAllowedOrigins: splitCSV(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")),

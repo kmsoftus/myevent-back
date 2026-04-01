@@ -21,17 +21,24 @@ type RSVPDetails struct {
 }
 
 type RSVPService struct {
-	events repositories.EventRepository
-	guests repositories.GuestRepository
-	rsvps  repositories.RSVPRepository
+	events         repositories.EventRepository
+	guests         repositories.GuestRepository
+	rsvps          repositories.RSVPRepository
+	openRSVPGuests atomicOpenRSVPGuestRepository
 }
 
 func NewRSVPService(events repositories.EventRepository, guests repositories.GuestRepository, rsvps repositories.RSVPRepository) *RSVPService {
-	return &RSVPService{
+	service := &RSVPService{
 		events: events,
 		guests: guests,
 		rsvps:  rsvps,
 	}
+
+	if openRSVPGuests, ok := guests.(atomicOpenRSVPGuestRepository); ok {
+		service.openRSVPGuests = openRSVPGuests
+	}
+
+	return service
 }
 
 // GuestCandidate is a lightweight guest representation returned by the search endpoint.
@@ -211,6 +218,39 @@ func (s *RSVPService) ensureEventOwnership(ctx context.Context, userID, eventID 
 // findOrCreateOpenRSVPGuest looks up a guest by name for an open-RSVP event.
 // If no guest with that exact name (case-insensitive) exists yet, one is created on the spot.
 func (s *RSVPService) findOrCreateOpenRSVPGuest(ctx context.Context, eventID, name string) (*models.Guest, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("%w: Informe o nome do convidado.", ErrValidation)
+	}
+
+	if s.openRSVPGuests != nil {
+		now := time.Now().UTC()
+		for attempt := 0; attempt < 5; attempt++ {
+			guest := &models.Guest{
+				ID:            uuid.NewString(),
+				EventID:       eventID,
+				Name:          name,
+				InviteCode:    utils.RandomUpperString(8),
+				ShortCode:     utils.RandomDigits(6),
+				QRCodeToken:   utils.RandomString(32),
+				MaxCompanions: 10,
+				RSVPStatus:    "pending",
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			}
+
+			created, err := s.openRSVPGuests.FindOrCreateOpenRSVPGuest(ctx, guest)
+			if err == nil {
+				return created, nil
+			}
+			if !errors.Is(err, repositories.ErrConflict) {
+				return nil, err
+			}
+		}
+
+		return nil, fmt.Errorf("%w: Nao foi possivel gerar identificadores para o convidado.", ErrConflict)
+	}
+
 	guests, err := s.guests.ListByEventID(ctx, eventID)
 	if err != nil {
 		return nil, err

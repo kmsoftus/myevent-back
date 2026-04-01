@@ -69,9 +69,9 @@ func NewRouter(
 
 	router.Route("/v1", func(r chi.Router) {
 		r.Route("/auth", func(r chi.Router) {
-			r.Post("/register", authHandler.Register)
-			r.Post("/login", authHandler.Login)
-			r.Post("/forgot-password", authHandler.ForgotPassword)
+			r.With(authmiddleware.NewIPRateLimit(10, time.Minute)).Post("/register", authHandler.Register)
+			r.With(authmiddleware.NewIPRateLimit(5, time.Minute)).Post("/login", authHandler.Login)
+			r.With(authmiddleware.NewIPRateLimit(3, 15*time.Minute)).Post("/forgot-password", authHandler.ForgotPassword)
 			r.Post("/reset-password", authHandler.ResetPassword)
 
 			r.Group(func(r chi.Router) {
@@ -86,10 +86,10 @@ func NewRouter(
 			r.Get("/events/{slug}", publicEventHandler.GetBySlug)
 			r.Get("/events/{slug}/rsvp/lookup", rsvpHandler.LookupPublic)
 			r.Get("/events/{slug}/rsvp/search", rsvpHandler.SearchPublic)
-			r.Post("/events/{slug}/rsvp", rsvpHandler.SubmitPublic)
+			r.With(authmiddleware.NewIPRateLimit(10, time.Minute)).Post("/events/{slug}/rsvp", rsvpHandler.SubmitPublic)
 			r.Get("/events/{slug}/gifts", giftHandler.ListPublic)
-			r.Post("/events/{slug}/gifts/{giftId}/reserve", giftTransactionHandler.ReservePublic)
-			r.Post("/events/{slug}/gifts/{giftId}/pix", giftTransactionHandler.PixPublic)
+			r.With(authmiddleware.NewIPRateLimit(5, time.Minute)).Post("/events/{slug}/gifts/{giftId}/reserve", giftTransactionHandler.ReservePublic)
+			r.With(authmiddleware.NewIPRateLimit(5, time.Minute)).Post("/events/{slug}/gifts/{giftId}/pix", giftTransactionHandler.PixPublic)
 		})
 
 		r.Group(func(r chi.Router) {
