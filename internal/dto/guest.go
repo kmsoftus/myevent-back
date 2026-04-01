@@ -27,6 +27,7 @@ type GuestResponse struct {
 	Email         string     `json:"email,omitempty"`
 	Phone         string     `json:"phone,omitempty"`
 	InviteCode    string     `json:"invite_code"`
+	ShortCode     string     `json:"short_code"`
 	QRCodeToken   string     `json:"qr_code_token"`
 	MaxCompanions int        `json:"max_companions"`
 	RSVPStatus    string     `json:"rsvp_status"`
@@ -41,6 +42,7 @@ func NewGuestResponse(guest *models.Guest) GuestResponse {
 		Email:         guest.Email,
 		Phone:         guest.Phone,
 		InviteCode:    guest.InviteCode,
+		ShortCode:     guest.ShortCode,
 		QRCodeToken:   guest.QRCodeToken,
 		MaxCompanions: guest.MaxCompanions,
 		RSVPStatus:    guest.RSVPStatus,

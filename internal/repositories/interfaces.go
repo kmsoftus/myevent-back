@@ -42,6 +42,8 @@ type GuestRepository interface {
 	ListByEventID(ctx context.Context, eventID string) ([]*models.Guest, error)
 	GetByID(ctx context.Context, id string) (*models.Guest, error)
 	GetByInviteCode(ctx context.Context, inviteCode string) (*models.Guest, error)
+	GetByShortCode(ctx context.Context, eventID, shortCode string) (*models.Guest, error)
+	SearchByName(ctx context.Context, eventID, query string, limit int) ([]*models.Guest, error)
 	GetByQRCodeToken(ctx context.Context, qrCodeToken string) (*models.Guest, error)
 	Update(ctx context.Context, guest *models.Guest) error
 	Delete(ctx context.Context, id string) error

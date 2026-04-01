@@ -47,6 +47,7 @@ func (s *GuestService) Create(ctx context.Context, userID, eventID string, input
 			Email:         normalizeOptionalEmail(input.Email),
 			Phone:         strings.TrimSpace(input.Phone),
 			InviteCode:    utils.RandomUpperString(8),
+			ShortCode:     utils.RandomDigits(6),
 			QRCodeToken:   utils.RandomString(32),
 			MaxCompanions: input.MaxCompanions,
 			RSVPStatus:    "pending",

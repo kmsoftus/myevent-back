@@ -443,6 +443,44 @@ func (r *guestRepository) GetByInviteCode(_ context.Context, inviteCode string) 
 	return cloneGuest(r.store.guests[id]), nil
 }
 
+func (r *guestRepository) GetByShortCode(_ context.Context, eventID, shortCode string) (*models.Guest, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	guestIDs := r.store.guestIDsByEvent[eventID]
+	for guestID := range guestIDs {
+		g := r.store.guests[guestID]
+		if g.ShortCode == shortCode {
+			return cloneGuest(g), nil
+		}
+	}
+	return nil, repositories.ErrNotFound
+}
+
+func (r *guestRepository) SearchByName(_ context.Context, eventID, query string, limit int) ([]*models.Guest, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	queryLower := strings.ToLower(query)
+	guestIDs := r.store.guestIDsByEvent[eventID]
+	var results []*models.Guest
+	for guestID := range guestIDs {
+		g := r.store.guests[guestID]
+		if strings.Contains(strings.ToLower(g.Name), queryLower) {
+			results = append(results, cloneGuest(g))
+			if len(results) >= limit {
+				break
+			}
+		}
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Name < results[j].Name
+	})
+
+	return results, nil
+}
+
 func (r *guestRepository) GetByQRCodeToken(_ context.Context, qrCodeToken string) (*models.Guest, error) {
 	r.store.mu.RLock()
 	defer r.store.mu.RUnlock()

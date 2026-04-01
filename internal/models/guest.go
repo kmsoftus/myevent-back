@@ -9,6 +9,7 @@ type Guest struct {
 	Email         string     `json:"email,omitempty"`
 	Phone         string     `json:"phone,omitempty"`
 	InviteCode    string     `json:"invite_code"`
+	ShortCode     string     `json:"short_code"`
 	QRCodeToken   string     `json:"qr_code_token"`
 	MaxCompanions int        `json:"max_companions"`
 	RSVPStatus    string     `json:"rsvp_status"`

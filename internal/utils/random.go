@@ -9,6 +9,7 @@ import (
 const (
 	alphaNumeric      = "abcdefghijklmnopqrstuvwxyz0123456789"
 	alphaNumericUpper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	digits            = "0123456789"
 )
 
 func RandomString(length int) string {
@@ -17,6 +18,10 @@ func RandomString(length int) string {
 
 func RandomUpperString(length int) string {
 	return randomFromCharset(length, alphaNumericUpper)
+}
+
+func RandomDigits(length int) string {
+	return randomFromCharset(length, digits)
 }
 
 func NormalizeSlug(value string) string {

@@ -34,6 +34,49 @@ func NewRSVPService(events repositories.EventRepository, guests repositories.Gue
 	}
 }
 
+// GuestCandidate is a lightweight guest representation returned by the search endpoint.
+type GuestCandidate struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	ShortCode string `json:"short_code"`
+}
+
+// SearchGuestsBySlug returns guests whose names contain the query string (case-insensitive).
+// Used by the frontend to let the guest confirm their identity before submitting RSVP.
+func (s *RSVPService) SearchGuestsBySlug(ctx context.Context, slug, query string) ([]GuestCandidate, error) {
+	event, err := s.events.GetBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	if event.Status != "published" {
+		return nil, ErrForbidden
+	}
+
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return []GuestCandidate{}, nil
+	}
+
+	guests, err := s.guests.SearchByName(ctx, event.ID, query, 10)
+	if err != nil {
+		return nil, err
+	}
+
+	candidates := make([]GuestCandidate, 0, len(guests))
+	for _, g := range guests {
+		candidates = append(candidates, GuestCandidate{
+			ID:        g.ID,
+			Name:      g.Name,
+			ShortCode: g.ShortCode,
+		})
+	}
+	return candidates, nil
+}
+
 func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.CreateRSVPRequest) (*RSVPDetails, error) {
 	event, err := s.events.GetBySlug(ctx, slug)
 	if err != nil {
@@ -60,7 +103,13 @@ func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.C
 			return nil, err
 		}
 	} else {
-		guest, err = s.guests.GetByInviteCode(ctx, guestIdentifier)
+		// Accept short code (digits only, 6-7 chars) or legacy invite code
+		isShortCode := isDigitsOnly(guestIdentifier) && len(guestIdentifier) >= 6 && len(guestIdentifier) <= 7
+		if isShortCode {
+			guest, err = s.guests.GetByShortCode(ctx, event.ID, guestIdentifier)
+		} else {
+			guest, err = s.guests.GetByInviteCode(ctx, guestIdentifier)
+		}
 		if err != nil {
 			if errors.Is(err, repositories.ErrNotFound) {
 				return nil, ErrNotFound
@@ -183,6 +232,7 @@ func (s *RSVPService) findOrCreateOpenRSVPGuest(ctx context.Context, eventID, na
 			EventID:       eventID,
 			Name:          name,
 			InviteCode:    utils.RandomUpperString(8),
+			ShortCode:     utils.RandomDigits(6),
 			QRCodeToken:   utils.RandomString(32),
 			MaxCompanions: 10,
 			RSVPStatus:    "pending",
@@ -203,6 +253,15 @@ func (s *RSVPService) findOrCreateOpenRSVPGuest(ctx context.Context, eventID, na
 	}
 
 	return created, nil
+}
+
+func isDigitsOnly(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func validateRSVPInput(status string, companionsCount, maxCompanions int) (string, int, error) {
