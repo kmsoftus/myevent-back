@@ -27,6 +27,7 @@ go run ./cmd/api
 ```
 
 Servidor padrao em `http://localhost:8080`.
+Em plataformas como Railway, o backend passa a respeitar automaticamente a variavel `PORT`.
 
 Se as variaveis do R2 nao estiverem preenchidas, os uploads ficam em `LOCAL_UPLOAD_DIR`
 e sao servidos em `http://localhost:8080/uploads/...`.

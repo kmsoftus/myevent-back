@@ -122,6 +122,7 @@ func main() {
 	}()
 
 	<-serverCtx.Done()
+	log.Print("shutdown signal received, stopping HTTP server")
 	stop()
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -130,6 +131,8 @@ func main() {
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Fatalf("http server shutdown error: %v", err)
 	}
+
+	log.Print("http server stopped")
 }
 
 func startGiftPendingSweeper(ctx context.Context, service *services.GiftTransactionService, interval time.Duration) {

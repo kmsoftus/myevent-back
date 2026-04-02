@@ -40,10 +40,14 @@ type Config struct {
 
 func Load() Config {
 	frontendURL := getEnv("FRONTEND_URL", "http://localhost:3000")
+	appPort := firstEnv("PORT", "APP_PORT")
+	if appPort == "" {
+		appPort = "8080"
+	}
 
 	return Config{
 		AppEnv:                       getEnv("APP_ENV", "development"),
-		AppPort:                      getEnv("APP_PORT", "8080"),
+		AppPort:                      appPort,
 		AppBaseURL:                   getEnv("APP_BASE_URL", "http://localhost:8080"),
 		FrontendURL:                  frontendURL,
 		EmailLogoURL:                 getEnv("EMAIL_LOGO_URL", strings.TrimRight(frontendURL, "/")+"/brand/myevent-social-avatar.png"),
@@ -97,6 +101,16 @@ func getEnv(key, fallback string) string {
 	}
 
 	return fallback
+}
+
+func firstEnv(keys ...string) string {
+	for _, key := range keys {
+		if value, ok := os.LookupEnv(key); ok && strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+
+	return ""
 }
 
 func getDurationEnv(key string, fallback time.Duration) time.Duration {
