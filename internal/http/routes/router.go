@@ -32,6 +32,7 @@ func NewRouter(
 	giftTransactionService *services.GiftTransactionService,
 	dashboardService *services.DashboardService,
 	uploadService *services.UploadService,
+	galleryService *services.GalleryService,
 ) http.Handler {
 	router := chi.NewRouter()
 
@@ -60,6 +61,8 @@ func NewRouter(
 	giftTransactionHandler := handlers.NewGiftTransactionHandler(giftTransactionService)
 	dashboardHandler := handlers.NewDashboardHandler(dashboardService)
 	uploadHandler := handlers.NewUploadHandler(uploadService)
+	galleryHandler := handlers.NewGalleryHandler(galleryService)
+	publicGalleryHandler := handlers.NewPublicGalleryHandler(galleryService)
 
 	if !cfg.UseR2Storage() {
 		router.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(cfg.LocalUploadDir))))
@@ -88,6 +91,7 @@ func NewRouter(
 			r.Get("/events/{slug}/rsvp/search", rsvpHandler.SearchPublic)
 			r.With(authmiddleware.NewIPRateLimit(10, time.Minute)).Post("/events/{slug}/rsvp", rsvpHandler.SubmitPublic)
 			r.Get("/events/{slug}/gifts", giftHandler.ListPublic)
+			r.Get("/events/{slug}/gallery", publicGalleryHandler.ListBySlug)
 			r.With(authmiddleware.NewIPRateLimit(5, time.Minute)).Post("/events/{slug}/gifts/{giftId}/reserve", giftTransactionHandler.ReservePublic)
 			r.With(authmiddleware.NewIPRateLimit(5, time.Minute)).Post("/events/{slug}/gifts/{giftId}/pix", giftTransactionHandler.PixPublic)
 		})
@@ -131,6 +135,12 @@ func NewRouter(
 				r.Patch("/{eventId}/gift-transactions/{transactionId}/confirm", giftTransactionHandler.Confirm)
 				r.Patch("/{eventId}/gift-transactions/{transactionId}/cancel", giftTransactionHandler.Cancel)
 				r.Get("/{eventId}/dashboard", dashboardHandler.GetByEvent)
+
+				r.Route("/{eventId}/gallery", func(r chi.Router) {
+					r.Post("/", galleryHandler.Add)
+					r.Get("/", galleryHandler.List)
+					r.Delete("/{photoId}", galleryHandler.Delete)
+				})
 			})
 		})
 	})

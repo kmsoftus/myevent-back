@@ -57,6 +57,7 @@ func main() {
 	rsvps := postgres.NewRSVPRepository(db)
 	gifts := postgres.NewGiftRepository(db)
 	giftTransactions := postgres.NewGiftTransactionRepository(db)
+	galleryPhotos := postgres.NewGalleryPhotoRepository(db)
 
 	passwordResetSender := buildPasswordResetSender(cfg)
 	registrationSender := buildRegistrationSender(cfg)
@@ -76,6 +77,8 @@ func main() {
 	giftService := services.NewGiftService(events, gifts)
 	giftTransactionService := services.NewGiftTransactionService(events, gifts, giftTransactions, cfg.GiftReservationTTL)
 	dashboardService := services.NewDashboardService(events, guests, gifts)
+
+	galleryService := services.NewGalleryService(events, galleryPhotos)
 
 	objectStorage, err := buildStorage(ctx, cfg)
 	if err != nil {
@@ -99,6 +102,7 @@ func main() {
 		giftTransactionService,
 		dashboardService,
 		uploadService,
+		galleryService,
 	)
 
 	server := &http.Server{

@@ -69,6 +69,14 @@ type GiftRepository interface {
 	Delete(ctx context.Context, id string) error
 }
 
+type GalleryPhotoRepository interface {
+	Create(ctx context.Context, photo *models.GalleryPhoto) error
+	ListByEventID(ctx context.Context, eventID string) ([]*models.GalleryPhoto, error)
+	CountByEventID(ctx context.Context, eventID string) (int, error)
+	GetByID(ctx context.Context, id string) (*models.GalleryPhoto, error)
+	Delete(ctx context.Context, id string) error
+}
+
 type GiftTransactionRepository interface {
 	Create(ctx context.Context, transaction *models.GiftTransaction) error
 	ListByEventID(ctx context.Context, eventID string) ([]*models.GiftTransaction, error)
