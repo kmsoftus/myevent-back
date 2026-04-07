@@ -47,7 +47,14 @@ func (h *EventHandler) List(w nethttp.ResponseWriter, r *nethttp.Request) {
 		return
 	}
 
-	events, err := h.service.ListByUser(r.Context(), userID)
+	query := r.URL.Query()
+	input := dto.ListEventsRequest{
+		Query:  query.Get("q"),
+		Status: query.Get("status"),
+		Sort:   query.Get("sort"),
+	}
+
+	events, err := h.service.ListByUser(r.Context(), userID, input)
 	if err != nil {
 		apphttp.MapError(w, err)
 		return

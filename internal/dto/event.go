@@ -48,6 +48,12 @@ type UpdateEventStatusRequest struct {
 	Status string `json:"status"`
 }
 
+type ListEventsRequest struct {
+	Query  string
+	Status string
+	Sort   string
+}
+
 type EventResponse struct {
 	ID              string `json:"id"`
 	UserID          string `json:"user_id"`

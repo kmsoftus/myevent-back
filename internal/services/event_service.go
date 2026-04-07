@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -86,8 +87,36 @@ func (s *EventService) Create(ctx context.Context, userID string, input dto.Crea
 	return event, nil
 }
 
-func (s *EventService) ListByUser(ctx context.Context, userID string) ([]*models.Event, error) {
-	return s.events.ListByUserID(ctx, userID)
+func (s *EventService) ListByUser(ctx context.Context, userID string, input dto.ListEventsRequest) ([]*models.Event, error) {
+	statusFilter := strings.TrimSpace(strings.ToLower(input.Status))
+	if statusFilter != "" && !isValidEventStatus(statusFilter) {
+		return nil, fmt.Errorf("%w: Status do evento invalido.", ErrValidation)
+	}
+
+	sortOption := normalizeListEventsSort(input.Sort)
+	if sortOption == "" {
+		return nil, fmt.Errorf("%w: Ordenacao invalida.", ErrValidation)
+	}
+
+	events, err := s.events.ListByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	queryFilter := strings.ToLower(strings.TrimSpace(input.Query))
+	filtered := make([]*models.Event, 0, len(events))
+	for _, event := range events {
+		if statusFilter != "" && event.Status != statusFilter {
+			continue
+		}
+		if queryFilter != "" && !strings.Contains(strings.ToLower(event.Title), queryFilter) {
+			continue
+		}
+		filtered = append(filtered, event)
+	}
+
+	sortEventsByDate(filtered, sortOption)
+	return filtered, nil
 }
 
 func (s *EventService) GetByIDForUser(ctx context.Context, userID, eventID string) (*models.Event, error) {
@@ -297,6 +326,48 @@ func (s *EventService) validateAndNormalizePayload(title, slug, description, dat
 
 	return normalizedSlug, nil
 }
+
+func normalizeListEventsSort(sortInput string) string {
+	switch strings.TrimSpace(strings.ToLower(sortInput)) {
+	case "", "date_desc":
+		return "date_desc"
+	case "date_asc":
+		return "date_asc"
+	default:
+		return ""
+	}
+}
+
+func sortEventsByDate(events []*models.Event, sortOption string) {
+	sort.SliceStable(events, func(i, j int) bool {
+		leftDate, leftValid := parseEventDate(events[i].Date)
+		rightDate, rightValid := parseEventDate(events[j].Date)
+
+		if leftValid && rightValid && !leftDate.Equal(rightDate) {
+			if sortOption == "date_asc" {
+				return leftDate.Before(rightDate)
+			}
+			return leftDate.After(rightDate)
+		}
+		if leftValid != rightValid {
+			return leftValid
+		}
+
+		if events[i].CreatedAt.Equal(events[j].CreatedAt) {
+			return events[i].ID < events[j].ID
+		}
+		return events[i].CreatedAt.After(events[j].CreatedAt)
+	})
+}
+
+func parseEventDate(rawDate string) (time.Time, bool) {
+	parsedDate, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(rawDate), saoPauloLocation)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return parsedDate, true
+}
+
 func validateTheme(theme string) error {
 	theme = strings.TrimSpace(strings.ToLower(theme))
 	if theme == "" {
