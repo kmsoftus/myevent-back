@@ -2,6 +2,8 @@ package notifier
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"strings"
 
 	firebase "firebase.google.com/go/v4"
@@ -16,24 +18,33 @@ type FirebasePushSender struct {
 type FirebasePushSenderOptions struct {
 	CredentialsFile string
 	CredentialsJSON string
+	ProjectID       string
 }
 
 func NewFirebasePushSender(ctx context.Context, options FirebasePushSenderOptions) (*FirebasePushSender, error) {
 	credentialsFile := strings.TrimSpace(options.CredentialsFile)
-	credentialsJSON := strings.TrimSpace(options.CredentialsJSON)
+	credentialsJSON := normalizeCredentialsJSON(options.CredentialsJSON)
+	projectID := strings.TrimSpace(options.ProjectID)
 
 	var appOption option.ClientOption
 	if credentialsJSON != "" {
 		appOption = option.WithCredentialsJSON([]byte(credentialsJSON))
+		if projectID == "" {
+			projectID = extractProjectIDFromJSON(credentialsJSON)
+		}
 	} else {
 		appOption = option.WithCredentialsFile(credentialsFile)
+		if projectID == "" {
+			projectID = extractProjectIDFromFile(credentialsFile)
+		}
 	}
 
-	app, err := firebase.NewApp(
-		ctx,
-		nil,
-		appOption,
-	)
+	firebaseConfig := &firebase.Config{}
+	if projectID != "" {
+		firebaseConfig.ProjectID = projectID
+	}
+
+	app, err := firebase.NewApp(ctx, firebaseConfig, appOption)
 	if err != nil {
 		return nil, err
 	}
@@ -64,4 +75,49 @@ func (s *FirebasePushSender) SendToDevice(ctx context.Context, deviceToken strin
 
 	_, err := s.client.Send(ctx, payload)
 	return err
+}
+
+func normalizeCredentialsJSON(value string) string {
+	raw := strings.TrimSpace(value)
+	if raw == "" {
+		return ""
+	}
+
+	var quoted string
+	if err := json.Unmarshal([]byte(raw), &quoted); err == nil {
+		unquoted := strings.TrimSpace(quoted)
+		if strings.HasPrefix(unquoted, "{") && strings.HasSuffix(unquoted, "}") {
+			return unquoted
+		}
+	}
+
+	return raw
+}
+
+func extractProjectIDFromJSON(raw string) string {
+	if strings.TrimSpace(raw) == "" {
+		return ""
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(raw), &payload); err != nil {
+		return ""
+	}
+
+	projectID, _ := payload["project_id"].(string)
+	return strings.TrimSpace(projectID)
+}
+
+func extractProjectIDFromFile(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+
+	return extractProjectIDFromJSON(string(content))
 }

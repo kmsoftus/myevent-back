@@ -224,6 +224,7 @@ func buildOrganizerPushSender(ctx context.Context, cfg config.Config) notifier.O
 	sender, err := notifier.NewFirebasePushSender(ctx, notifier.FirebasePushSenderOptions{
 		CredentialsFile: cfg.FirebaseCredentialsFile,
 		CredentialsJSON: cfg.FirebaseCredentialsJSON,
+		ProjectID:       cfg.FirebaseProjectID,
 	})
 	if err != nil {
 		log.Printf("organizer push notifications disabled: failed to initialize Firebase sender: %v", err)
