@@ -199,6 +199,10 @@ func (s *GiftService) Delete(ctx context.Context, userID, eventID, giftID string
 		return err
 	}
 
+	if gift.Status == "confirmed" {
+		return fmt.Errorf("%w: Nao e possivel remover um presente ja pago.", ErrConflict)
+	}
+
 	if err := s.gifts.Delete(ctx, gift.ID); err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
 			return ErrNotFound
