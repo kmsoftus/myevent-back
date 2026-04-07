@@ -200,10 +200,11 @@ func (s *AuthService) Me(ctx context.Context, userID string) (*models.User, erro
 	return user, nil
 }
 
-func (s *AuthService) UpdateProfile(ctx context.Context, userID, name, contactPhone string) (*models.User, error) {
+func (s *AuthService) UpdateProfile(ctx context.Context, userID, name, contactPhone, profilePhotoURL string) (*models.User, error) {
 	userID = strings.TrimSpace(userID)
 	name = strings.TrimSpace(name)
 	contactPhone = normalizeContactPhone(contactPhone)
+	profilePhotoURL = strings.TrimSpace(profilePhotoURL)
 
 	if userID == "" {
 		return nil, NewUnauthorizedError(
@@ -223,7 +224,7 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID, name, contactPh
 	}
 
 	now := time.Now().UTC()
-	if err := s.users.UpdateProfile(ctx, userID, name, contactPhone, now); err != nil {
+	if err := s.users.UpdateProfile(ctx, userID, name, contactPhone, profilePhotoURL, now); err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
 			return nil, NewUnauthorizedError(
 				"Sessao invalida. Faca login novamente.",

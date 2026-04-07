@@ -137,7 +137,7 @@ func (h *AuthHandler) UpdateMe(w nethttp.ResponseWriter, r *nethttp.Request) {
 		return
 	}
 
-	user, err := h.service.UpdateProfile(r.Context(), userID, request.Name, request.ContactPhone)
+	user, err := h.service.UpdateProfile(r.Context(), userID, request.Name, request.ContactPhone, request.ProfilePhotoURL)
 	if err != nil {
 		apphttp.MapError(w, err)
 		return

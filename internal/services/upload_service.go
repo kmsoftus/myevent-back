@@ -22,6 +22,7 @@ var (
 		"events/covers":  {},
 		"events/gifts":   {},
 		"events/gallery": {},
+		"users/profiles": {},
 	}
 	allowedUploadMIMEs = map[string]string{
 		"image/jpeg": ".jpg",

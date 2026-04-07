@@ -164,7 +164,7 @@ func (r *userRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *userRepository) UpdateProfile(_ context.Context, id, name, contactPhone string, updatedAt time.Time) error {
+func (r *userRepository) UpdateProfile(_ context.Context, id, name, contactPhone, profilePhotoURL string, updatedAt time.Time) error {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
 
@@ -175,6 +175,7 @@ func (r *userRepository) UpdateProfile(_ context.Context, id, name, contactPhone
 
 	user.Name = name
 	user.ContactPhone = contactPhone
+	user.ProfilePhotoURL = profilePhotoURL
 	user.UpdatedAt = updatedAt
 	return nil
 }

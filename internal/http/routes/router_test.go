@@ -911,7 +911,7 @@ func TestRegisterSendsTelegramNotification(t *testing.T) {
 	}
 }
 
-func TestUpdateProfileUpdatesNameAndContactPhone(t *testing.T) {
+func TestUpdateProfileUpdatesNameContactPhoneAndProfilePhoto(t *testing.T) {
 	router := newTestRouter(t)
 
 	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
@@ -930,8 +930,9 @@ func TestUpdateProfileUpdatesNameAndContactPhone(t *testing.T) {
 	decodeBody(t, registerResponse, &authPayload)
 
 	updateResponse := performJSONRequest(t, router, http.MethodPatch, "/v1/auth/me", authPayload.Token, map[string]any{
-		"name":          "Kaleb Moura",
-		"contact_phone": "11999998888",
+		"name":              "Kaleb Moura",
+		"contact_phone":     "11999998888",
+		"profile_photo_url": "https://cdn.example.com/users/profiles/kaleb.jpg",
 	})
 	if updateResponse.Code != http.StatusOK {
 		t.Fatalf("expected update profile status 200, got %d", updateResponse.Code)
@@ -940,8 +941,9 @@ func TestUpdateProfileUpdatesNameAndContactPhone(t *testing.T) {
 	var updatePayload struct {
 		Message string `json:"message"`
 		User    struct {
-			Name         string `json:"name"`
-			ContactPhone string `json:"contact_phone"`
+			Name            string `json:"name"`
+			ContactPhone    string `json:"contact_phone"`
+			ProfilePhotoURL string `json:"profile_photo_url"`
 		} `json:"user"`
 	}
 	decodeBody(t, updateResponse, &updatePayload)
@@ -954,6 +956,9 @@ func TestUpdateProfileUpdatesNameAndContactPhone(t *testing.T) {
 	if updatePayload.User.ContactPhone != "(11) 99999-8888" {
 		t.Fatalf("expected formatted contact phone, got %q", updatePayload.User.ContactPhone)
 	}
+	if updatePayload.User.ProfilePhotoURL != "https://cdn.example.com/users/profiles/kaleb.jpg" {
+		t.Fatalf("expected updated profile photo url, got %q", updatePayload.User.ProfilePhotoURL)
+	}
 
 	meResponse := performJSONRequest(t, router, http.MethodGet, "/v1/auth/me", authPayload.Token, nil)
 	if meResponse.Code != http.StatusOK {
@@ -961,8 +966,9 @@ func TestUpdateProfileUpdatesNameAndContactPhone(t *testing.T) {
 	}
 
 	var mePayload struct {
-		Name         string `json:"name"`
-		ContactPhone string `json:"contact_phone"`
+		Name            string `json:"name"`
+		ContactPhone    string `json:"contact_phone"`
+		ProfilePhotoURL string `json:"profile_photo_url"`
 	}
 	decodeBody(t, meResponse, &mePayload)
 	if mePayload.Name != "Kaleb Moura" {
@@ -970,6 +976,9 @@ func TestUpdateProfileUpdatesNameAndContactPhone(t *testing.T) {
 	}
 	if mePayload.ContactPhone != "(11) 99999-8888" {
 		t.Fatalf("expected persisted formatted contact phone, got %q", mePayload.ContactPhone)
+	}
+	if mePayload.ProfilePhotoURL != "https://cdn.example.com/users/profiles/kaleb.jpg" {
+		t.Fatalf("expected persisted profile photo url, got %q", mePayload.ProfilePhotoURL)
 	}
 }
 
@@ -1040,6 +1049,25 @@ func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
 	}
 	decodeBody(t, uploadResponse, &uploadPayload)
 
+	profileUploadResponse := performMultipartRequest(t, router, "/v1/uploads", authPayload.Token, "users/profiles", "profile.png", samplePNG)
+	if profileUploadResponse.Code != http.StatusCreated {
+		t.Fatalf("expected profile upload status 201, got %d", profileUploadResponse.Code)
+	}
+
+	var profileUploadPayload struct {
+		Key string `json:"key"`
+		URL string `json:"url"`
+	}
+	decodeBody(t, profileUploadResponse, &profileUploadPayload)
+
+	updateProfileResponse := performJSONRequest(t, router, http.MethodPatch, "/v1/auth/me", authPayload.Token, map[string]any{
+		"name":              "Kaleb",
+		"profile_photo_url": profileUploadPayload.URL,
+	})
+	if updateProfileResponse.Code != http.StatusOK {
+		t.Fatalf("expected profile update status 200, got %d", updateProfileResponse.Code)
+	}
+
 	createEventResponse := performJSONRequest(t, router, http.MethodPost, "/v1/events", authPayload.Token, map[string]any{
 		"title":           "Evento para excluir",
 		"slug":            "evento-para-excluir",
@@ -1066,6 +1094,10 @@ func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
 	if _, err := os.Stat(assetPath); err != nil {
 		t.Fatalf("expected uploaded asset to exist before account deletion: %v", err)
 	}
+	profileAssetPath := filepath.Join(uploadDir, filepath.FromSlash(profileUploadPayload.Key))
+	if _, err := os.Stat(profileAssetPath); err != nil {
+		t.Fatalf("expected profile upload asset to exist before account deletion: %v", err)
+	}
 
 	deleteAccountResponse := performJSONRequest(t, router, http.MethodDelete, "/v1/auth/me", authPayload.Token, map[string]any{
 		"email": "kaleb-delete@example.com",
@@ -1076,6 +1108,9 @@ func TestDeleteAccountRemovesManagedUploadsAndUserData(t *testing.T) {
 
 	if _, err := os.Stat(assetPath); !os.IsNotExist(err) {
 		t.Fatalf("expected managed upload to be deleted, got err=%v", err)
+	}
+	if _, err := os.Stat(profileAssetPath); !os.IsNotExist(err) {
+		t.Fatalf("expected managed profile upload to be deleted, got err=%v", err)
 	}
 
 	meResponse := performJSONRequest(t, router, http.MethodGet, "/v1/auth/me", authPayload.Token, nil)
@@ -1193,7 +1228,7 @@ func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSen
 	uploadService := services.NewUploadService(localStorage, cfg.UploadMaxSizeBytes)
 	accountService := services.NewAccountService(store.Users(), store.Events(), store.Gifts(), uploadService)
 
-	return NewRouter(cfg, nil, localStorage, jwtManager, authService, accountService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService), passwordResetSender, registrationSender, store, uploadDir
+	return NewRouter(cfg, nil, localStorage, jwtManager, authService, accountService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService, nil), passwordResetSender, registrationSender, store, uploadDir
 }
 
 func performJSONRequest(t *testing.T, router http.Handler, method, path, token string, body any) *httptest.ResponseRecorder {

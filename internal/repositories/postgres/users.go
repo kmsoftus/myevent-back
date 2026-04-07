@@ -12,7 +12,7 @@ import (
 	"myevent-back/internal/repositories"
 )
 
-const userColumns = `id, name, email, contact_phone, accepted_terms, marketing_opt_in, password_hash, utm_source, utm_medium, utm_campaign, utm_term, utm_content, created_at, updated_at`
+const userColumns = `id, name, email, contact_phone, profile_photo_url, accepted_terms, marketing_opt_in, password_hash, utm_source, utm_medium, utm_campaign, utm_term, utm_content, created_at, updated_at`
 
 type UserRepository struct {
 	db *pgxpool.Pool
@@ -24,12 +24,13 @@ func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	_, err := r.db.Exec(ctx,
-		`INSERT INTO users (id, name, email, contact_phone, accepted_terms, marketing_opt_in, password_hash, utm_source, utm_medium, utm_campaign, utm_term, utm_content, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+		`INSERT INTO users (id, name, email, contact_phone, profile_photo_url, accepted_terms, marketing_opt_in, password_hash, utm_source, utm_medium, utm_campaign, utm_term, utm_content, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
 		user.ID,
 		user.Name,
 		user.Email,
 		user.ContactPhone,
+		user.ProfilePhotoURL,
 		user.AcceptedTerms,
 		user.MarketingOptIn,
 		user.PasswordHash,
@@ -59,6 +60,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*models.User, 
 		&u.Name,
 		&u.Email,
 		&u.ContactPhone,
+		&u.ProfilePhotoURL,
 		&u.AcceptedTerms,
 		&u.MarketingOptIn,
 		&u.PasswordHash,
@@ -88,6 +90,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 		&u.Name,
 		&u.Email,
 		&u.ContactPhone,
+		&u.ProfilePhotoURL,
 		&u.AcceptedTerms,
 		&u.MarketingOptIn,
 		&u.PasswordHash,
@@ -120,14 +123,15 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (r *UserRepository) UpdateProfile(ctx context.Context, id, name, contactPhone string, updatedAt time.Time) error {
+func (r *UserRepository) UpdateProfile(ctx context.Context, id, name, contactPhone, profilePhotoURL string, updatedAt time.Time) error {
 	commandTag, err := r.db.Exec(ctx,
 		`UPDATE users
 		    SET name = $2,
 		        contact_phone = $3,
-		        updated_at = $4
+		        profile_photo_url = $4,
+		        updated_at = $5
 		  WHERE id = $1`,
-		id, name, contactPhone, updatedAt,
+		id, name, contactPhone, profilePhotoURL, updatedAt,
 	)
 	if err != nil {
 		return err

@@ -35,15 +35,17 @@ type DeleteAccountRequest struct {
 }
 
 type UpdateProfileRequest struct {
-	Name         string `json:"name"`
-	ContactPhone string `json:"contact_phone"`
+	Name            string `json:"name"`
+	ContactPhone    string `json:"contact_phone"`
+	ProfilePhotoURL string `json:"profile_photo_url"`
 }
 
 type UserResponse struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Email        string `json:"email"`
-	ContactPhone string `json:"contact_phone,omitempty"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	Email           string `json:"email"`
+	ContactPhone    string `json:"contact_phone,omitempty"`
+	ProfilePhotoURL string `json:"profile_photo_url,omitempty"`
 }
 
 type AuthResponse struct {
@@ -63,10 +65,11 @@ type MessageResponse struct {
 
 func NewUserResponse(user *models.User) UserResponse {
 	return UserResponse{
-		ID:           user.ID,
-		Name:         user.Name,
-		Email:        user.Email,
-		ContactPhone: user.ContactPhone,
+		ID:              user.ID,
+		Name:            user.Name,
+		Email:           user.Email,
+		ContactPhone:    user.ContactPhone,
+		ProfilePhotoURL: user.ProfilePhotoURL,
 	}
 }
 

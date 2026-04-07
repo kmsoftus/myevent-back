@@ -95,6 +95,19 @@ func (s *AccountService) Delete(ctx context.Context, userID, email string) error
 func (s *AccountService) collectManagedUploadKeys(ctx context.Context, userID string) (map[string]struct{}, error) {
 	keys := make(map[string]struct{})
 
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, NewUnauthorizedError(
+				"Sessao invalida. Faca login novamente.",
+				"auth_session_invalid",
+			)
+		}
+		return nil, err
+	}
+
+	s.collectManagedKey(user.ProfilePhotoURL, keys)
+
 	events, err := s.events.ListByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
