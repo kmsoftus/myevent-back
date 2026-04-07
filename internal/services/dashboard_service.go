@@ -10,13 +10,15 @@ import (
 )
 
 type DashboardService struct {
+	users  repositories.UserRepository
 	events repositories.EventRepository
 	guests repositories.GuestRepository
 	gifts  repositories.GiftRepository
 }
 
-func NewDashboardService(events repositories.EventRepository, guests repositories.GuestRepository, gifts repositories.GiftRepository) *DashboardService {
+func NewDashboardService(users repositories.UserRepository, events repositories.EventRepository, guests repositories.GuestRepository, gifts repositories.GiftRepository) *DashboardService {
 	return &DashboardService{
+		users:  users,
 		events: events,
 		guests: guests,
 		gifts:  gifts,
@@ -28,6 +30,14 @@ func (s *DashboardService) GetByEvent(ctx context.Context, userID, eventID strin
 		return nil, err
 	}
 
+	user, err := s.users.GetByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
 	guests, err := s.guests.ListByEventID(ctx, eventID)
 	if err != nil {
 		return nil, err
@@ -35,6 +45,11 @@ func (s *DashboardService) GetByEvent(ctx context.Context, userID, eventID strin
 
 	response := &dto.DashboardResponse{
 		GuestsTotal: len(guests),
+		User: dto.DashboardUserResponse{
+			ID:              user.ID,
+			Name:            user.Name,
+			ProfilePhotoURL: user.ProfilePhotoURL,
+		},
 	}
 
 	for _, guest := range guests {

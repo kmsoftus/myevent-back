@@ -76,7 +76,7 @@ func main() {
 	checkInService := services.NewCheckInService(events, guests, rsvps)
 	giftService := services.NewGiftService(events, gifts)
 	giftTransactionService := services.NewGiftTransactionService(events, gifts, giftTransactions, cfg.GiftReservationTTL)
-	dashboardService := services.NewDashboardService(events, guests, gifts)
+	dashboardService := services.NewDashboardService(users, events, guests, gifts)
 
 	galleryService := services.NewGalleryService(events, galleryPhotos)
 

@@ -1224,7 +1224,7 @@ func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSen
 	checkInService := services.NewCheckInService(store.Events(), store.Guests(), store.RSVPs())
 	giftService := services.NewGiftService(store.Events(), store.Gifts())
 	giftTransactionService := services.NewGiftTransactionService(store.Events(), store.Gifts(), store.GiftTransactions(), time.Hour)
-	dashboardService := services.NewDashboardService(store.Events(), store.Guests(), store.Gifts())
+	dashboardService := services.NewDashboardService(store.Users(), store.Events(), store.Guests(), store.Gifts())
 	uploadService := services.NewUploadService(localStorage, cfg.UploadMaxSizeBytes)
 	accountService := services.NewAccountService(store.Users(), store.Events(), store.Gifts(), uploadService)
 
