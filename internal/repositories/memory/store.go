@@ -20,6 +20,8 @@ type Store struct {
 	passwordResetTokens         map[string]*models.PasswordResetToken
 	passwordResetTokenByHash    map[string]string
 	passwordResetTokenIDsByUser map[string]map[string]struct{}
+	pushDeviceTokens            map[string]*models.PushDeviceToken
+	pushDeviceTokenIDsByUser    map[string]map[string]struct{}
 
 	events      map[string]*models.Event
 	eventBySlug map[string]string
@@ -47,6 +49,8 @@ func NewStore() *Store {
 		passwordResetTokens:         make(map[string]*models.PasswordResetToken),
 		passwordResetTokenByHash:    make(map[string]string),
 		passwordResetTokenIDsByUser: make(map[string]map[string]struct{}),
+		pushDeviceTokens:            make(map[string]*models.PushDeviceToken),
+		pushDeviceTokenIDsByUser:    make(map[string]map[string]struct{}),
 		events:                      make(map[string]*models.Event),
 		eventBySlug:                 make(map[string]string),
 		guests:                      make(map[string]*models.Guest),
@@ -77,6 +81,10 @@ func (s *Store) PasswordResetTokens() repositories.PasswordResetTokenRepository 
 
 func (s *Store) Guests() repositories.GuestRepository {
 	return &guestRepository{store: s}
+}
+
+func (s *Store) PushDeviceTokens() repositories.PushDeviceTokenRepository {
+	return &pushDeviceTokenRepository{store: s}
 }
 
 func (s *Store) RSVPs() repositories.RSVPRepository {
@@ -153,6 +161,13 @@ func (r *userRepository) Delete(_ context.Context, id string) error {
 			}
 		}
 		delete(r.store.passwordResetTokenIDsByUser, id)
+	}
+
+	if tokenIDs, ok := r.store.pushDeviceTokenIDsByUser[id]; ok {
+		for tokenID := range tokenIDs {
+			delete(r.store.pushDeviceTokens, tokenID)
+		}
+		delete(r.store.pushDeviceTokenIDsByUser, id)
 	}
 
 	for eventID, event := range r.store.events {
@@ -268,11 +283,96 @@ func (r *passwordResetTokenRepository) Consume(_ context.Context, tokenHash stri
 	return clonePasswordResetToken(token), nil
 }
 
+func (r *pushDeviceTokenRepository) Upsert(_ context.Context, token *models.PushDeviceToken) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	if _, ok := r.store.users[token.UserID]; !ok {
+		return repositories.ErrNotFound
+	}
+
+	if existing, ok := r.store.pushDeviceTokens[token.Token]; ok {
+		if existing.UserID != token.UserID {
+			if tokenIDs := r.store.pushDeviceTokenIDsByUser[existing.UserID]; tokenIDs != nil {
+				delete(tokenIDs, existing.Token)
+				if len(tokenIDs) == 0 {
+					delete(r.store.pushDeviceTokenIDsByUser, existing.UserID)
+				}
+			}
+			existing.CreatedAt = token.CreatedAt
+		}
+
+		existing.UserID = token.UserID
+		existing.Platform = token.Platform
+		existing.UpdatedAt = token.UpdatedAt
+		existing.LastSeenAt = token.LastSeenAt
+
+		if _, ok := r.store.pushDeviceTokenIDsByUser[token.UserID]; !ok {
+			r.store.pushDeviceTokenIDsByUser[token.UserID] = make(map[string]struct{})
+		}
+		r.store.pushDeviceTokenIDsByUser[token.UserID][token.Token] = struct{}{}
+		return nil
+	}
+
+	copy := clonePushDeviceToken(token)
+	r.store.pushDeviceTokens[token.Token] = copy
+	if _, ok := r.store.pushDeviceTokenIDsByUser[token.UserID]; !ok {
+		r.store.pushDeviceTokenIDsByUser[token.UserID] = make(map[string]struct{})
+	}
+	r.store.pushDeviceTokenIDsByUser[token.UserID][token.Token] = struct{}{}
+	return nil
+}
+
+func (r *pushDeviceTokenRepository) ListByUserID(_ context.Context, userID string) ([]*models.PushDeviceToken, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	tokenIDs := r.store.pushDeviceTokenIDsByUser[userID]
+	tokens := make([]*models.PushDeviceToken, 0, len(tokenIDs))
+	for tokenID := range tokenIDs {
+		token := r.store.pushDeviceTokens[tokenID]
+		if token == nil {
+			continue
+		}
+		tokens = append(tokens, clonePushDeviceToken(token))
+	}
+
+	sort.Slice(tokens, func(i, j int) bool {
+		return tokens[i].UpdatedAt.After(tokens[j].UpdatedAt)
+	})
+
+	return tokens, nil
+}
+
+func (r *pushDeviceTokenRepository) DeleteByToken(_ context.Context, token string) error {
+	r.store.mu.Lock()
+	defer r.store.mu.Unlock()
+
+	current, ok := r.store.pushDeviceTokens[token]
+	if !ok {
+		return nil
+	}
+
+	delete(r.store.pushDeviceTokens, token)
+	if tokenIDs := r.store.pushDeviceTokenIDsByUser[current.UserID]; tokenIDs != nil {
+		delete(tokenIDs, token)
+		if len(tokenIDs) == 0 {
+			delete(r.store.pushDeviceTokenIDsByUser, current.UserID)
+		}
+	}
+
+	return nil
+}
+
 type eventRepository struct {
 	store *Store
 }
 
 type passwordResetTokenRepository struct {
+	store *Store
+}
+
+type pushDeviceTokenRepository struct {
 	store *Store
 }
 
@@ -891,6 +991,11 @@ func clonePasswordResetToken(token *models.PasswordResetToken) *models.PasswordR
 		usedAt := *token.UsedAt
 		copy.UsedAt = &usedAt
 	}
+	return &copy
+}
+
+func clonePushDeviceToken(token *models.PushDeviceToken) *models.PushDeviceToken {
+	copy := *token
 	return &copy
 }
 

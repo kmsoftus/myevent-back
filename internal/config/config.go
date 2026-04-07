@@ -14,6 +14,8 @@ type Config struct {
 	FrontendURL                  string
 	EmailLogoURL                 string
 	PasswordResetURL             string
+	FirebaseCredentialsFile      string
+	FirebaseCredentialsJSON      string
 	TelegramBotToken             string
 	TelegramGroupID              string
 	JWTSecret                    string
@@ -52,6 +54,8 @@ func Load() Config {
 		FrontendURL:                  frontendURL,
 		EmailLogoURL:                 getEnv("EMAIL_LOGO_URL", strings.TrimRight(frontendURL, "/")+"/brand/myevent-social-avatar.png"),
 		PasswordResetURL:             getEnv("PASSWORD_RESET_URL", strings.TrimRight(frontendURL, "/")+"/redefinir-senha"),
+		FirebaseCredentialsFile:      getEnv("FIREBASE_CREDENTIALS_FILE", ""),
+		FirebaseCredentialsJSON:      getEnv("FIREBASE_CREDENTIALS_JSON", ""),
 		TelegramBotToken:             getEnv("TELEGRAM_BOT_TOKEN", ""),
 		TelegramGroupID:              getEnv("TELEGRAM_GROUP_ID", ""),
 		JWTSecret:                    getEnv("JWT_SECRET", ""),
@@ -93,6 +97,11 @@ func (c Config) UseBrevoEmail() bool {
 func (c Config) UseTelegramNotifications() bool {
 	return strings.TrimSpace(c.TelegramBotToken) != "" &&
 		strings.TrimSpace(c.TelegramGroupID) != ""
+}
+
+func (c Config) UseFirebasePushNotifications() bool {
+	return strings.TrimSpace(c.FirebaseCredentialsFile) != "" ||
+		strings.TrimSpace(c.FirebaseCredentialsJSON) != ""
 }
 
 func getEnv(key, fallback string) string {

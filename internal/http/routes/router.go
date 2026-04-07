@@ -33,6 +33,7 @@ func NewRouter(
 	dashboardService *services.DashboardService,
 	uploadService *services.UploadService,
 	galleryService *services.GalleryService,
+	notificationService *services.OrganizerNotificationService,
 ) http.Handler {
 	router := chi.NewRouter()
 
@@ -63,6 +64,7 @@ func NewRouter(
 	uploadHandler := handlers.NewUploadHandler(uploadService)
 	galleryHandler := handlers.NewGalleryHandler(galleryService)
 	publicGalleryHandler := handlers.NewPublicGalleryHandler(galleryService)
+	notificationHandler := handlers.NewNotificationHandler(notificationService)
 
 	if !cfg.UseR2Storage() {
 		router.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(cfg.LocalUploadDir))))
@@ -102,6 +104,10 @@ func NewRouter(
 			r.Route("/uploads", func(r chi.Router) {
 				r.Post("/", uploadHandler.Create)
 				r.Delete("/", uploadHandler.Delete)
+			})
+
+			r.Route("/notifications", func(r chi.Router) {
+				r.Post("/device-token", notificationHandler.RegisterDeviceToken)
 			})
 
 			r.Route("/events", func(r chi.Router) {

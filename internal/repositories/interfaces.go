@@ -28,6 +28,12 @@ type PasswordResetTokenRepository interface {
 	Consume(ctx context.Context, tokenHash string, now time.Time) (*models.PasswordResetToken, error)
 }
 
+type PushDeviceTokenRepository interface {
+	Upsert(ctx context.Context, token *models.PushDeviceToken) error
+	ListByUserID(ctx context.Context, userID string) ([]*models.PushDeviceToken, error)
+	DeleteByToken(ctx context.Context, token string) error
+}
+
 type EventRepository interface {
 	Create(ctx context.Context, event *models.Event) error
 	ListByUserID(ctx context.Context, userID string) ([]*models.Event, error)

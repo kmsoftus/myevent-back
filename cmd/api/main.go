@@ -58,9 +58,12 @@ func main() {
 	gifts := postgres.NewGiftRepository(db)
 	giftTransactions := postgres.NewGiftTransactionRepository(db)
 	galleryPhotos := postgres.NewGalleryPhotoRepository(db)
+	pushDeviceTokens := postgres.NewPushDeviceTokenRepository(db)
 
 	passwordResetSender := buildPasswordResetSender(cfg)
 	registrationSender := buildRegistrationSender(cfg)
+	organizerPushSender := buildOrganizerPushSender(ctx, cfg)
+	organizerNotificationService := services.NewOrganizerNotificationService(pushDeviceTokens, organizerPushSender)
 	authService := services.NewAuthService(
 		users,
 		passwordResetTokens,
@@ -72,10 +75,10 @@ func main() {
 	)
 	eventService := services.NewEventService(events)
 	guestService := services.NewGuestService(events, guests)
-	rsvpService := services.NewRSVPService(events, guests, rsvps, cfg.OpenRSVPDefaultMaxCompanions)
+	rsvpService := services.NewRSVPService(events, guests, rsvps, cfg.OpenRSVPDefaultMaxCompanions, organizerNotificationService)
 	checkInService := services.NewCheckInService(events, guests, rsvps)
 	giftService := services.NewGiftService(events, gifts)
-	giftTransactionService := services.NewGiftTransactionService(events, gifts, giftTransactions, cfg.GiftReservationTTL)
+	giftTransactionService := services.NewGiftTransactionService(events, gifts, giftTransactions, cfg.GiftReservationTTL, organizerNotificationService)
 	dashboardService := services.NewDashboardService(users, events, guests, gifts)
 
 	galleryService := services.NewGalleryService(events, galleryPhotos)
@@ -103,6 +106,7 @@ func main() {
 		dashboardService,
 		uploadService,
 		galleryService,
+		organizerNotificationService,
 	)
 
 	server := &http.Server{
@@ -209,4 +213,22 @@ func buildRegistrationSender(cfg config.Config) notifier.RegistrationSender {
 		BotToken: cfg.TelegramBotToken,
 		ChatID:   cfg.TelegramGroupID,
 	})
+}
+
+func buildOrganizerPushSender(ctx context.Context, cfg config.Config) notifier.OrganizerPushSender {
+	if !cfg.UseFirebasePushNotifications() {
+		log.Print("organizer push notifications disabled: configure FIREBASE_CREDENTIALS_FILE to enable")
+		return notifier.NoopOrganizerPushSender{}
+	}
+
+	sender, err := notifier.NewFirebasePushSender(ctx, notifier.FirebasePushSenderOptions{
+		CredentialsFile: cfg.FirebaseCredentialsFile,
+		CredentialsJSON: cfg.FirebaseCredentialsJSON,
+	})
+	if err != nil {
+		log.Printf("organizer push notifications disabled: failed to initialize Firebase sender: %v", err)
+		return notifier.NoopOrganizerPushSender{}
+	}
+
+	return sender
 }

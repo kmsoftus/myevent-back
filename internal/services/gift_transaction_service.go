@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -20,11 +21,12 @@ type GiftTransactionDetails struct {
 }
 
 type GiftTransactionService struct {
-	events       repositories.EventRepository
-	gifts        repositories.GiftRepository
-	transactions repositories.GiftTransactionRepository
-	atomicTxs    atomicGiftTransactionRepository
-	pendingTTL   time.Duration
+	events                 repositories.EventRepository
+	gifts                  repositories.GiftRepository
+	transactions           repositories.GiftTransactionRepository
+	atomicTxs              atomicGiftTransactionRepository
+	pendingTTL             time.Duration
+	organizerNotifications *OrganizerNotificationService
 }
 
 func NewGiftTransactionService(
@@ -32,12 +34,16 @@ func NewGiftTransactionService(
 	gifts repositories.GiftRepository,
 	transactions repositories.GiftTransactionRepository,
 	pendingTTL time.Duration,
+	organizerNotifications ...*OrganizerNotificationService,
 ) *GiftTransactionService {
 	service := &GiftTransactionService{
 		events:       events,
 		gifts:        gifts,
 		transactions: transactions,
 		pendingTTL:   pendingTTL,
+	}
+	if len(organizerNotifications) > 0 {
+		service.organizerNotifications = organizerNotifications[0]
 	}
 
 	if atomicTxs, ok := transactions.(atomicGiftTransactionRepository); ok {
@@ -286,6 +292,18 @@ func (s *GiftTransactionService) createPublicTransaction(
 				return nil, ErrNotFound
 			}
 			return nil, err
+		}
+	}
+
+	if s.organizerNotifications != nil {
+		if err := s.organizerNotifications.NotifyGiftReserved(ctx, event, gift, transaction); err != nil {
+			log.Printf(
+				"organizer gift push notification failed for event %s gift %s transaction %s: %v",
+				event.ID,
+				gift.ID,
+				transaction.ID,
+				err,
+			)
 		}
 	}
 

@@ -1177,6 +1177,58 @@ func TestDeleteAccountRequiresMatchingConfirmationEmail(t *testing.T) {
 	}
 }
 
+func TestRegisterDeviceToken(t *testing.T) {
+	router, _, _, store, _ := newTestRouterWithDeps(t)
+
+	registerResponse := performJSONRequest(t, router, http.MethodPost, "/v1/auth/register", "", map[string]any{
+		"name":           "Kaleb",
+		"email":          "kaleb-device-token@example.com",
+		"password":       "Senha123",
+		"accepted_terms": true,
+	})
+	if registerResponse.Code != http.StatusCreated {
+		t.Fatalf("expected register status 201, got %d", registerResponse.Code)
+	}
+
+	var registerPayload struct {
+		Token string `json:"token"`
+		User  struct {
+			ID string `json:"id"`
+		} `json:"user"`
+	}
+	decodeBody(t, registerResponse, &registerPayload)
+
+	deviceToken := strings.Repeat("a", 32)
+	registerTokenResponse := performJSONRequest(
+		t,
+		router,
+		http.MethodPost,
+		"/v1/notifications/device-token",
+		registerPayload.Token,
+		map[string]any{
+			"token":    deviceToken,
+			"platform": "android",
+		},
+	)
+	if registerTokenResponse.Code != http.StatusCreated {
+		t.Fatalf("expected register device token status 201, got %d", registerTokenResponse.Code)
+	}
+
+	tokens, err := store.PushDeviceTokens().ListByUserID(context.Background(), registerPayload.User.ID)
+	if err != nil {
+		t.Fatalf("list user device tokens: %v", err)
+	}
+	if len(tokens) != 1 {
+		t.Fatalf("expected 1 device token, got %d", len(tokens))
+	}
+	if tokens[0].Token != deviceToken {
+		t.Fatalf("expected token %q, got %q", deviceToken, tokens[0].Token)
+	}
+	if tokens[0].Platform != "android" {
+		t.Fatalf("expected platform android, got %q", tokens[0].Platform)
+	}
+}
+
 func newTestRouter(t *testing.T) http.Handler {
 	router, _, _, _, _ := newTestRouterWithDeps(t)
 	return router
@@ -1208,6 +1260,8 @@ func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSen
 	store := memory.NewStore()
 	passwordResetSender := &capturePasswordResetSender{}
 	registrationSender := &captureRegistrationSender{}
+	organizerPushSender := &captureOrganizerPushSender{}
+	organizerNotificationService := services.NewOrganizerNotificationService(store.PushDeviceTokens(), organizerPushSender)
 
 	authService := services.NewAuthService(
 		store.Users(),
@@ -1220,15 +1274,15 @@ func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSen
 	)
 	eventService := services.NewEventService(store.Events())
 	guestService := services.NewGuestService(store.Events(), store.Guests())
-	rsvpService := services.NewRSVPService(store.Events(), store.Guests(), store.RSVPs(), 0)
+	rsvpService := services.NewRSVPService(store.Events(), store.Guests(), store.RSVPs(), 0, organizerNotificationService)
 	checkInService := services.NewCheckInService(store.Events(), store.Guests(), store.RSVPs())
 	giftService := services.NewGiftService(store.Events(), store.Gifts())
-	giftTransactionService := services.NewGiftTransactionService(store.Events(), store.Gifts(), store.GiftTransactions(), time.Hour)
+	giftTransactionService := services.NewGiftTransactionService(store.Events(), store.Gifts(), store.GiftTransactions(), time.Hour, organizerNotificationService)
 	dashboardService := services.NewDashboardService(store.Users(), store.Events(), store.Guests(), store.Gifts())
 	uploadService := services.NewUploadService(localStorage, cfg.UploadMaxSizeBytes)
 	accountService := services.NewAccountService(store.Users(), store.Events(), store.Gifts(), uploadService)
 
-	return NewRouter(cfg, nil, localStorage, jwtManager, authService, accountService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService, nil), passwordResetSender, registrationSender, store, uploadDir
+	return NewRouter(cfg, nil, localStorage, jwtManager, authService, accountService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService, nil, organizerNotificationService), passwordResetSender, registrationSender, store, uploadDir
 }
 
 func performJSONRequest(t *testing.T, router http.Handler, method, path, token string, body any) *httptest.ResponseRecorder {
@@ -1325,5 +1379,11 @@ type captureRegistrationSender struct {
 
 func (s *captureRegistrationSender) SendNewRegistration(_ context.Context, message notifier.NewRegistrationMessage) error {
 	s.messages = append(s.messages, message)
+	return nil
+}
+
+type captureOrganizerPushSender struct{}
+
+func (captureOrganizerPushSender) SendToDevice(_ context.Context, _ string, _ notifier.OrganizerPushMessage) error {
 	return nil
 }

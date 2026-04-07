@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -26,14 +27,24 @@ type RSVPService struct {
 	rsvps                        repositories.RSVPRepository
 	openRSVPGuests               atomicOpenRSVPGuestRepository
 	openRSVPDefaultMaxCompanions int
+	organizerNotifications       *OrganizerNotificationService
 }
 
-func NewRSVPService(events repositories.EventRepository, guests repositories.GuestRepository, rsvps repositories.RSVPRepository, openRSVPDefaultMaxCompanions int) *RSVPService {
+func NewRSVPService(
+	events repositories.EventRepository,
+	guests repositories.GuestRepository,
+	rsvps repositories.RSVPRepository,
+	openRSVPDefaultMaxCompanions int,
+	organizerNotifications ...*OrganizerNotificationService,
+) *RSVPService {
 	service := &RSVPService{
 		events:                       events,
 		guests:                       guests,
 		rsvps:                        rsvps,
 		openRSVPDefaultMaxCompanions: max(0, openRSVPDefaultMaxCompanions),
+	}
+	if len(organizerNotifications) > 0 {
+		service.organizerNotifications = organizerNotifications[0]
 	}
 
 	if openRSVPGuests, ok := guests.(atomicOpenRSVPGuestRepository); ok {
@@ -167,6 +178,17 @@ func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.C
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+
+	if s.organizerNotifications != nil {
+		if err := s.organizerNotifications.NotifyNewRSVP(ctx, event, guest, rsvp); err != nil {
+			log.Printf(
+				"organizer RSVP push notification failed for event %s guest %s: %v",
+				event.ID,
+				guest.ID,
+				err,
+			)
+		}
 	}
 
 	return &RSVPDetails{
