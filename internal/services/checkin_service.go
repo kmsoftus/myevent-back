@@ -121,13 +121,13 @@ func (s *CheckInService) resolveGuest(ctx context.Context, eventID string, input
 	}
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
-			return nil, ErrNotFound
+			return nil, fmt.Errorf("%w: Convidado não encontrado.", ErrNotFound)
 		}
 		return nil, err
 	}
 
 	if guest.EventID != eventID {
-		return nil, ErrNotFound
+		return nil, fmt.Errorf("%w: Convidado não encontrado.", ErrNotFound)
 	}
 
 	return guest, nil
