@@ -1282,7 +1282,7 @@ func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSen
 	uploadService := services.NewUploadService(localStorage, cfg.UploadMaxSizeBytes)
 	accountService := services.NewAccountService(store.Users(), store.Events(), store.Gifts(), uploadService)
 
-	return NewRouter(cfg, nil, localStorage, jwtManager, authService, accountService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService, nil, organizerNotificationService), passwordResetSender, registrationSender, store, uploadDir
+	return NewRouter(cfg, nil, localStorage, jwtManager, authService, accountService, eventService, guestService, rsvpService, checkInService, giftService, giftTransactionService, dashboardService, uploadService, nil, organizerNotificationService, store.Users()), passwordResetSender, registrationSender, store, uploadDir
 }
 
 func performJSONRequest(t *testing.T, router http.Handler, method, path, token string, body any) *httptest.ResponseRecorder {
