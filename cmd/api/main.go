@@ -107,6 +107,7 @@ func main() {
 		uploadService,
 		galleryService,
 		organizerNotificationService,
+		users,
 	)
 
 	server := &http.Server{

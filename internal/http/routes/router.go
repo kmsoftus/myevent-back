@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -13,9 +14,14 @@ import (
 	"myevent-back/internal/config"
 	"myevent-back/internal/http/handlers"
 	authmiddleware "myevent-back/internal/http/middleware"
+	"myevent-back/internal/models"
 	"myevent-back/internal/services"
 	"myevent-back/internal/storage"
 )
+
+type userGetter interface {
+	GetByID(ctx context.Context, id string) (*models.User, error)
+}
 
 func NewRouter(
 	cfg config.Config,
@@ -34,6 +40,7 @@ func NewRouter(
 	uploadService *services.UploadService,
 	galleryService *services.GalleryService,
 	notificationService *services.OrganizerNotificationService,
+	userRepository userGetter,
 ) http.Handler {
 	router := chi.NewRouter()
 
@@ -65,6 +72,7 @@ func NewRouter(
 	galleryHandler := handlers.NewGalleryHandler(galleryService)
 	publicGalleryHandler := handlers.NewPublicGalleryHandler(galleryService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
+	adminNotificationHandler := handlers.NewAdminNotificationHandler(notificationService)
 
 	if !cfg.UseR2Storage() {
 		router.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(cfg.LocalUploadDir))))
@@ -149,6 +157,11 @@ func NewRouter(
 				})
 			})
 		})
+	})
+
+	router.Route("/v1/admin", func(r chi.Router) {
+		r.Use(authmiddleware.AdminAuthenticator(jwtManager, userRepository, cfg.AdminEmails))
+		r.Post("/notifications/send", adminNotificationHandler.SendPromotional)
 	})
 
 	return router

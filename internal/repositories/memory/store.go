@@ -364,6 +364,18 @@ func (r *pushDeviceTokenRepository) DeleteByToken(_ context.Context, token strin
 	return nil
 }
 
+func (r *pushDeviceTokenRepository) ListAll(_ context.Context) ([]*models.PushDeviceToken, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	tokens := make([]*models.PushDeviceToken, 0, len(r.store.pushDeviceTokens))
+	for _, t := range r.store.pushDeviceTokens {
+		clone := *t
+		tokens = append(tokens, &clone)
+	}
+	return tokens, nil
+}
+
 type eventRepository struct {
 	store *Store
 }
