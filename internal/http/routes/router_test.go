@@ -458,10 +458,13 @@ func TestPhaseThreeFlow(t *testing.T) {
 		t.Fatalf("expected list transactions status 200, got %d", listTransactionsResponse.Code)
 	}
 
-	var transactionsPayload []map[string]any
+	var transactionsPayload struct {
+		Items []map[string]any `json:"items"`
+		Total int              `json:"total"`
+	}
 	decodeBody(t, listTransactionsResponse, &transactionsPayload)
-	if len(transactionsPayload) != 1 {
-		t.Fatalf("expected 1 gift transaction, got %d", len(transactionsPayload))
+	if len(transactionsPayload.Items) != 1 {
+		t.Fatalf("expected 1 gift transaction, got %d", len(transactionsPayload.Items))
 	}
 
 	confirmTransactionResponse := performJSONRequest(t, router, http.MethodPatch, "/v1/events/"+eventPayload.ID+"/gift-transactions/"+reservePayload.ID+"/confirm", authPayload.Token, map[string]any{

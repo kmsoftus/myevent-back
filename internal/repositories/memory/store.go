@@ -575,6 +575,19 @@ func (r *guestRepository) GetByID(_ context.Context, id string) (*models.Guest, 
 	return cloneGuest(guest), nil
 }
 
+func (r *guestRepository) GetByIDs(_ context.Context, ids []string) ([]*models.Guest, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	result := make([]*models.Guest, 0, len(ids))
+	for _, id := range ids {
+		if g, ok := r.store.guests[id]; ok {
+			result = append(result, cloneGuest(g))
+		}
+	}
+	return result, nil
+}
+
 func (r *guestRepository) GetByInviteCode(_ context.Context, inviteCode string) (*models.Guest, error) {
 	r.store.mu.RLock()
 	defer r.store.mu.RUnlock()
@@ -862,6 +875,19 @@ func (r *giftRepository) GetByID(_ context.Context, id string) (*models.Gift, er
 	return cloneGift(gift), nil
 }
 
+func (r *giftRepository) GetByIDs(_ context.Context, ids []string) ([]*models.Gift, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	result := make([]*models.Gift, 0, len(ids))
+	for _, id := range ids {
+		if g, ok := r.store.gifts[id]; ok {
+			result = append(result, cloneGift(g))
+		}
+	}
+	return result, nil
+}
+
 func (r *giftRepository) Update(_ context.Context, gift *models.Gift) error {
 	r.store.mu.Lock()
 	defer r.store.mu.Unlock()
@@ -926,6 +952,37 @@ func (r *giftTransactionRepository) ListByEventID(_ context.Context, eventID str
 	})
 
 	return transactions, nil
+}
+
+func (r *giftTransactionRepository) CountByEventID(_ context.Context, eventID string) (int, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	return len(r.store.giftTransactionIDsByEvent[eventID]), nil
+}
+
+func (r *giftTransactionRepository) ListByEventIDPaged(_ context.Context, eventID string, limit, offset int) ([]*models.GiftTransaction, error) {
+	r.store.mu.RLock()
+	defer r.store.mu.RUnlock()
+
+	transactionIDs := r.store.giftTransactionIDsByEvent[eventID]
+	transactions := make([]*models.GiftTransaction, 0, len(transactionIDs))
+	for transactionID := range transactionIDs {
+		transactions = append(transactions, cloneGiftTransaction(r.store.giftTransactions[transactionID]))
+	}
+
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].CreatedAt.After(transactions[j].CreatedAt)
+	})
+
+	if offset >= len(transactions) {
+		return []*models.GiftTransaction{}, nil
+	}
+	end := offset + limit
+	if end > len(transactions) {
+		end = len(transactions)
+	}
+	return transactions[offset:end], nil
 }
 
 func (r *giftTransactionRepository) GetByID(_ context.Context, id string) (*models.GiftTransaction, error) {

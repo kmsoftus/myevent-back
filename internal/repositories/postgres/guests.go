@@ -156,6 +156,29 @@ func (r *GuestRepository) GetByID(ctx context.Context, id string) (*models.Guest
 	return g, nil
 }
 
+func (r *GuestRepository) GetByIDs(ctx context.Context, ids []string) ([]*models.Guest, error) {
+	if len(ids) == 0 {
+		return []*models.Guest{}, nil
+	}
+	rows, err := r.db.Query(ctx,
+		`SELECT `+guestColumns+` FROM guests WHERE id = ANY($1)`, ids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var guests []*models.Guest
+	for rows.Next() {
+		g, err := scanGuest(rows)
+		if err != nil {
+			return nil, err
+		}
+		guests = append(guests, g)
+	}
+	return guests, rows.Err()
+}
+
 func (r *GuestRepository) GetByInviteCode(ctx context.Context, inviteCode string) (*models.Guest, error) {
 	row := r.db.QueryRow(ctx, `SELECT `+guestColumns+` FROM guests WHERE invite_code = $1`, inviteCode)
 	g, err := scanGuest(row)
@@ -194,4 +217,20 @@ func (r *GuestRepository) Update(ctx context.Context, guest *models.Guest) error
 func (r *GuestRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM guests WHERE id = $1`, id)
 	return err
+}
+
+// GuestStatsByEventID computes dashboard counters in a single SQL aggregate query.
+// The dashboard service uses this via a type assertion to avoid loading all rows.
+func (r *GuestRepository) GuestStatsByEventID(ctx context.Context, eventID string) (repositories.GuestDashboardStats, error) {
+	var s repositories.GuestDashboardStats
+	err := r.db.QueryRow(ctx,
+		`SELECT
+			COUNT(*)                                                              AS total,
+			COUNT(*) FILTER (WHERE rsvp_status = 'confirmed')                    AS confirmed,
+			COUNT(*) FILTER (WHERE rsvp_status = 'declined')                     AS declined,
+			COUNT(*) FILTER (WHERE rsvp_status NOT IN ('confirmed', 'declined')) AS pending,
+			COUNT(*) FILTER (WHERE checked_in_at IS NOT NULL)                    AS checked_in
+		 FROM guests WHERE event_id = $1`, eventID,
+	).Scan(&s.Total, &s.Confirmed, &s.Declined, &s.Pending, &s.CheckedIn)
+	return s, err
 }

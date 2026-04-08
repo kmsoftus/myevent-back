@@ -56,18 +56,25 @@ func (h *GiftTransactionHandler) ListByEvent(w nethttp.ResponseWriter, r *nethtt
 		return
 	}
 
-	details, err := h.service.ListByEvent(r.Context(), userID, chi.URLParam(r, "eventId"))
+	page, pageSize := apphttp.ReadPagination(r)
+	details, err := h.service.ListByEvent(r.Context(), userID, chi.URLParam(r, "eventId"), page, pageSize)
 	if err != nil {
 		apphttp.MapError(w, err)
 		return
 	}
 
-	response := make([]dto.GiftTransactionResponse, 0, len(details))
-	for _, item := range details {
+	response := make([]dto.GiftTransactionResponse, 0, len(details.Items))
+	for _, item := range details.Items {
 		response = append(response, dto.NewGiftTransactionResponse(item.Transaction, item.Gift))
 	}
 
-	apphttp.WriteJSON(w, nethttp.StatusOK, response)
+	apphttp.WriteJSON(w, nethttp.StatusOK, dto.PaginatedResponse[dto.GiftTransactionResponse]{
+		Items:      response,
+		Total:      details.Total,
+		Page:       details.Page,
+		PageSize:   details.PageSize,
+		TotalPages: details.TotalPages,
+	})
 }
 
 func (h *GiftTransactionHandler) Confirm(w nethttp.ResponseWriter, r *nethttp.Request) {

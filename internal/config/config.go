@@ -22,6 +22,13 @@ type Config struct {
 	JWTSecret                    string
 	JWTExpiresIn                 time.Duration
 	DatabaseURL                  string
+	DBMaxConns                   int32
+	DBMinConns                   int32
+	DBMaxConnLifetime            time.Duration
+	DBMaxConnIdleTime            time.Duration
+	HTTPReadTimeout              time.Duration
+	HTTPWriteTimeout             time.Duration
+	HTTPIdleTimeout              time.Duration
 	CORSAllowedOrigins           []string
 	BrevoAPIKey                  string
 	BrevoSenderEmail             string
@@ -64,6 +71,13 @@ func Load() Config {
 		JWTSecret:                    getEnv("JWT_SECRET", ""),
 		JWTExpiresIn:                 getDurationEnv("JWT_EXPIRES_IN", 168*time.Hour),
 		DatabaseURL:                  getEnv("DATABASE_URL", ""),
+		DBMaxConns:                   int32(getIntEnv("DB_MAX_CONNS", 20)),
+		DBMinConns:                   int32(getIntEnv("DB_MIN_CONNS", 2)),
+		DBMaxConnLifetime:            getDurationEnv("DB_MAX_CONN_LIFETIME", 30*time.Minute),
+		DBMaxConnIdleTime:            getDurationEnv("DB_MAX_CONN_IDLE_TIME", 5*time.Minute),
+		HTTPReadTimeout:              getDurationEnv("HTTP_READ_TIMEOUT", 30*time.Second),
+		HTTPWriteTimeout:             getDurationEnv("HTTP_WRITE_TIMEOUT", 60*time.Second),
+		HTTPIdleTimeout:              getDurationEnv("HTTP_IDLE_TIMEOUT", 120*time.Second),
 		CORSAllowedOrigins:           splitCSV(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")),
 		BrevoAPIKey:                  getEnv("BREVO_API_KEY", ""),
 		BrevoSenderEmail:             getEnv("BREVO_SENDER_EMAIL", ""),

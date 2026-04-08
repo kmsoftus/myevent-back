@@ -106,6 +106,29 @@ func (r *GiftRepository) GetByID(ctx context.Context, id string) (*models.Gift, 
 	return g, nil
 }
 
+func (r *GiftRepository) GetByIDs(ctx context.Context, ids []string) ([]*models.Gift, error) {
+	if len(ids) == 0 {
+		return []*models.Gift{}, nil
+	}
+	rows, err := r.db.Query(ctx,
+		`SELECT `+giftColumns+` FROM gifts WHERE id = ANY($1)`, ids,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var gifts []*models.Gift
+	for rows.Next() {
+		g, err := scanGift(rows)
+		if err != nil {
+			return nil, err
+		}
+		gifts = append(gifts, g)
+	}
+	return gifts, rows.Err()
+}
+
 func (r *GiftRepository) Update(ctx context.Context, gift *models.Gift) error {
 	_, err := r.db.Exec(ctx,
 		`UPDATE gifts SET title=$1, description=$2, image_url=$3, value_cents=$4,
@@ -121,4 +144,18 @@ func (r *GiftRepository) Update(ctx context.Context, gift *models.Gift) error {
 func (r *GiftRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.Exec(ctx, `DELETE FROM gifts WHERE id = $1`, id)
 	return err
+}
+
+// GiftStatsByEventID computes dashboard counters in a single SQL aggregate query.
+// The dashboard service uses this via a type assertion to avoid loading all rows.
+func (r *GiftRepository) GiftStatsByEventID(ctx context.Context, eventID string) (repositories.GiftDashboardStats, error) {
+	var s repositories.GiftDashboardStats
+	err := r.db.QueryRow(ctx,
+		`SELECT
+			COUNT(*)                                                         AS total,
+			COUNT(*) FILTER (WHERE status = 'confirmed')                    AS confirmed,
+			COUNT(*) FILTER (WHERE status = 'pending_payment')              AS pending_payment
+		 FROM gifts WHERE event_id = $1`, eventID,
+	).Scan(&s.Total, &s.Confirmed, &s.PendingPayment)
+	return s, err
 }

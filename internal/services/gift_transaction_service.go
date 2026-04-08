@@ -70,33 +70,56 @@ func (s *GiftTransactionService) RegisterPixBySlug(ctx context.Context, slug, gi
 	return s.createPublicTransaction(ctx, slug, giftID, input, "pix")
 }
 
-func (s *GiftTransactionService) ListByEvent(ctx context.Context, userID, eventID string) ([]GiftTransactionDetails, error) {
+func (s *GiftTransactionService) ListByEvent(ctx context.Context, userID, eventID string, page, pageSize int) (*PagedResult[GiftTransactionDetails], error) {
 	if _, err := s.ensureEventOwnership(ctx, userID, eventID); err != nil {
 		return nil, err
 	}
 
-	transactions, err := s.transactions.ListByEventID(ctx, eventID)
+	pagination := normalizePagination(page, pageSize)
+
+	total, err := s.transactions.CountByEventID(ctx, eventID)
 	if err != nil {
 		return nil, err
 	}
 
+	transactions, err := s.transactions.ListByEventIDPaged(ctx, eventID, pagination.PageSize, pagination.Offset)
+	if err != nil {
+		return nil, err
+	}
+
+	// Batch-load gifts in a single query instead of one query per transaction.
+	giftIDs := make([]string, len(transactions))
+	for i, t := range transactions {
+		giftIDs[i] = t.GiftID
+	}
+	giftSlice, err := s.gifts.GetByIDs(ctx, giftIDs)
+	if err != nil {
+		return nil, err
+	}
+	giftByID := make(map[string]*models.Gift, len(giftSlice))
+	for _, g := range giftSlice {
+		giftByID[g.ID] = g
+	}
+
 	response := make([]GiftTransactionDetails, 0, len(transactions))
 	for _, transaction := range transactions {
-		gift, err := s.gifts.GetByID(ctx, transaction.GiftID)
-		if err != nil {
-			if errors.Is(err, repositories.ErrNotFound) {
-				continue
-			}
-			return nil, err
+		gift, ok := giftByID[transaction.GiftID]
+		if !ok {
+			continue
 		}
-
 		response = append(response, GiftTransactionDetails{
 			Transaction: transaction,
 			Gift:        gift,
 		})
 	}
 
-	return response, nil
+	return &PagedResult[GiftTransactionDetails]{
+		Items:      response,
+		Total:      total,
+		Page:       pagination.Page,
+		PageSize:   pagination.PageSize,
+		TotalPages: totalPages(total, pagination.PageSize),
+	}, nil
 }
 
 func (s *GiftTransactionService) Confirm(ctx context.Context, userID, eventID, transactionID string, input dto.UpdateGiftTransactionStatusRequest) (*GiftTransactionDetails, error) {
@@ -296,15 +319,17 @@ func (s *GiftTransactionService) createPublicTransaction(
 	}
 
 	if s.organizerNotifications != nil {
-		if err := s.organizerNotifications.NotifyGiftReserved(ctx, event, gift, transaction); err != nil {
-			log.Printf(
-				"organizer gift push notification failed for event %s gift %s transaction %s: %v",
-				event.ID,
-				gift.ID,
-				transaction.ID,
-				err,
-			)
-		}
+		go func() {
+			if err := s.organizerNotifications.NotifyGiftReserved(context.Background(), event, gift, transaction); err != nil {
+				log.Printf(
+					"organizer gift push notification failed for event %s gift %s transaction %s: %v",
+					event.ID,
+					gift.ID,
+					transaction.ID,
+					err,
+				)
+			}
+		}()
 	}
 
 	return &GiftTransactionDetails{Transaction: transaction, Gift: gift}, nil

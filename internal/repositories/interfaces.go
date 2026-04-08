@@ -13,6 +13,16 @@ var (
 	ErrConflict = errors.New("repository conflict")
 )
 
+// GuestDashboardStats holds aggregated guest counters for the dashboard.
+type GuestDashboardStats struct {
+	Total, Confirmed, Declined, Pending, CheckedIn int
+}
+
+// GiftDashboardStats holds aggregated gift counters for the dashboard.
+type GiftDashboardStats struct {
+	Total, Confirmed, PendingPayment int
+}
+
 type UserRepository interface {
 	Create(ctx context.Context, user *models.User) error
 	GetByID(ctx context.Context, id string) (*models.User, error)
@@ -50,6 +60,7 @@ type GuestRepository interface {
 	CountByEventID(ctx context.Context, eventID string) (int, error)
 	ListByEventIDPaged(ctx context.Context, eventID string, limit, offset int) ([]*models.Guest, error)
 	GetByID(ctx context.Context, id string) (*models.Guest, error)
+	GetByIDs(ctx context.Context, ids []string) ([]*models.Guest, error)
 	GetByInviteCode(ctx context.Context, inviteCode string) (*models.Guest, error)
 	GetByShortCode(ctx context.Context, eventID, shortCode string) (*models.Guest, error)
 	SearchByName(ctx context.Context, eventID, query string, limit int) ([]*models.Guest, error)
@@ -72,6 +83,7 @@ type GiftRepository interface {
 	CountByEventID(ctx context.Context, eventID string) (int, error)
 	ListByEventIDPaged(ctx context.Context, eventID string, limit, offset int) ([]*models.Gift, error)
 	GetByID(ctx context.Context, id string) (*models.Gift, error)
+	GetByIDs(ctx context.Context, ids []string) ([]*models.Gift, error)
 	Update(ctx context.Context, gift *models.Gift) error
 	Delete(ctx context.Context, id string) error
 }
@@ -87,6 +99,8 @@ type GalleryPhotoRepository interface {
 type GiftTransactionRepository interface {
 	Create(ctx context.Context, transaction *models.GiftTransaction) error
 	ListByEventID(ctx context.Context, eventID string) ([]*models.GiftTransaction, error)
+	CountByEventID(ctx context.Context, eventID string) (int, error)
+	ListByEventIDPaged(ctx context.Context, eventID string, limit, offset int) ([]*models.GiftTransaction, error)
 	GetByID(ctx context.Context, id string) (*models.GiftTransaction, error)
 	Update(ctx context.Context, transaction *models.GiftTransaction) error
 	ExpirePendingBefore(ctx context.Context, cutoff, expiredAt time.Time) (int, error)

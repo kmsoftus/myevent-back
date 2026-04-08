@@ -65,6 +65,38 @@ func (r *GiftTransactionRepository) ListByEventID(ctx context.Context, eventID s
 	return txs, rows.Err()
 }
 
+func (r *GiftTransactionRepository) CountByEventID(ctx context.Context, eventID string) (int, error) {
+	var total int
+	if err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM gift_transactions WHERE event_id = $1`, eventID).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+func (r *GiftTransactionRepository) ListByEventIDPaged(ctx context.Context, eventID string, limit, offset int) ([]*models.GiftTransaction, error) {
+	rows, err := r.db.Query(ctx,
+		`SELECT `+txColumns+` FROM gift_transactions
+		 WHERE event_id = $1
+		 ORDER BY created_at DESC
+		 LIMIT $2 OFFSET $3`,
+		eventID, limit, offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var txs []*models.GiftTransaction
+	for rows.Next() {
+		t, err := scanTransaction(rows)
+		if err != nil {
+			return nil, err
+		}
+		txs = append(txs, t)
+	}
+	return txs, rows.Err()
+}
+
 func (r *GiftTransactionRepository) GetByID(ctx context.Context, id string) (*models.GiftTransaction, error) {
 	row := r.db.QueryRow(ctx, `SELECT `+txColumns+` FROM gift_transactions WHERE id = $1`, id)
 	t, err := scanTransaction(row)

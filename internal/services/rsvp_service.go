@@ -181,14 +181,16 @@ func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.C
 	}
 
 	if s.organizerNotifications != nil {
-		if err := s.organizerNotifications.NotifyNewRSVP(ctx, event, guest, rsvp); err != nil {
-			log.Printf(
-				"organizer RSVP push notification failed for event %s guest %s: %v",
-				event.ID,
-				guest.ID,
-				err,
-			)
-		}
+		go func() {
+			if err := s.organizerNotifications.NotifyNewRSVP(context.Background(), event, guest, rsvp); err != nil {
+				log.Printf(
+					"organizer RSVP push notification failed for event %s guest %s: %v",
+					event.ID,
+					guest.ID,
+					err,
+				)
+			}
+		}()
 	}
 
 	return &RSVPDetails{
@@ -214,16 +216,26 @@ func (s *RSVPService) ListByEvent(ctx context.Context, userID, eventID string, p
 		return nil, err
 	}
 
+	// Batch-load guests in a single query instead of one query per RSVP.
+	guestIDs := make([]string, len(rsvps))
+	for i, rsvp := range rsvps {
+		guestIDs[i] = rsvp.GuestID
+	}
+	guestSlice, err := s.guests.GetByIDs(ctx, guestIDs)
+	if err != nil {
+		return nil, err
+	}
+	guestByID := make(map[string]*models.Guest, len(guestSlice))
+	for _, g := range guestSlice {
+		guestByID[g.ID] = g
+	}
+
 	response := make([]RSVPDetails, 0, len(rsvps))
 	for _, rsvp := range rsvps {
-		guest, err := s.guests.GetByID(ctx, rsvp.GuestID)
-		if err != nil {
-			if errors.Is(err, repositories.ErrNotFound) {
-				continue
-			}
-			return nil, err
+		guest, ok := guestByID[rsvp.GuestID]
+		if !ok {
+			continue
 		}
-
 		response = append(response, RSVPDetails{
 			RSVP:  rsvp,
 			Guest: guest,

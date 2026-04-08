@@ -107,6 +107,7 @@ func TestRSVPServiceSubmitBySlugSendsOrganizerPush(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("submit RSVP: %v", err)
 	}
+	time.Sleep(50 * time.Millisecond)
 
 	if len(pushSender.sent) != 1 {
 		t.Fatalf("expected 1 push notification, got %d", len(pushSender.sent))
@@ -178,6 +179,7 @@ func TestGiftTransactionServiceReserveBySlugSendsOrganizerPush(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("reserve gift: %v", err)
 	}
+	time.Sleep(50 * time.Millisecond)
 
 	if len(pushSender.sent) != 1 {
 		t.Fatalf("expected 1 push notification, got %d", len(pushSender.sent))

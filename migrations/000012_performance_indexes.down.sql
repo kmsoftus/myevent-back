@@ -1,0 +1,8 @@
+DROP INDEX IF EXISTS idx_gift_transactions_status_created_at;
+DROP INDEX IF EXISTS idx_gift_transactions_gift_id;
+DROP INDEX IF EXISTS idx_gift_transactions_event_id;
+DROP INDEX IF EXISTS idx_gifts_event_id;
+DROP INDEX IF EXISTS idx_rsvps_event_id;
+DROP INDEX IF EXISTS idx_guests_name_trgm;
+DROP INDEX IF EXISTS idx_guests_event_id;
+DROP INDEX IF EXISTS idx_events_user_id;

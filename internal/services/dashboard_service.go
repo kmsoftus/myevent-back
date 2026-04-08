@@ -9,6 +9,16 @@ import (
 	"myevent-back/internal/repositories"
 )
 
+// guestStatsAggregator is an optional interface that postgres repos implement
+// to compute dashboard counters in a single SQL aggregate query.
+type guestStatsAggregator interface {
+	GuestStatsByEventID(ctx context.Context, eventID string) (repositories.GuestDashboardStats, error)
+}
+
+type giftStatsAggregator interface {
+	GiftStatsByEventID(ctx context.Context, eventID string) (repositories.GiftDashboardStats, error)
+}
+
 type DashboardService struct {
 	users  repositories.UserRepository
 	events repositories.EventRepository
@@ -38,13 +48,7 @@ func (s *DashboardService) GetByEvent(ctx context.Context, userID, eventID strin
 		return nil, err
 	}
 
-	guests, err := s.guests.ListByEventID(ctx, eventID)
-	if err != nil {
-		return nil, err
-	}
-
 	response := &dto.DashboardResponse{
-		GuestsTotal: len(guests),
 		User: dto.DashboardUserResponse{
 			ID:              user.ID,
 			Name:            user.Name,
@@ -52,33 +56,58 @@ func (s *DashboardService) GetByEvent(ctx context.Context, userID, eventID strin
 		},
 	}
 
-	for _, guest := range guests {
-		switch guest.RSVPStatus {
-		case "confirmed":
-			response.GuestsConfirmed++
-		case "declined":
-			response.GuestsDeclined++
-		default:
-			response.GuestsPending++
+	// Use SQL aggregation if available (postgres), fall back to in-memory loop otherwise (tests).
+	if agg, ok := s.guests.(guestStatsAggregator); ok {
+		stats, err := agg.GuestStatsByEventID(ctx, eventID)
+		if err != nil {
+			return nil, err
 		}
-
-		if guest.CheckedInAt != nil {
-			response.CheckedInTotal++
+		response.GuestsTotal = stats.Total
+		response.GuestsConfirmed = stats.Confirmed
+		response.GuestsDeclined = stats.Declined
+		response.GuestsPending = stats.Pending
+		response.CheckedInTotal = stats.CheckedIn
+	} else {		guests, err := s.guests.ListByEventID(ctx, eventID)
+		if err != nil {
+			return nil, err
+		}
+		response.GuestsTotal = len(guests)
+		for _, guest := range guests {
+			switch guest.RSVPStatus {
+			case "confirmed":
+				response.GuestsConfirmed++
+			case "declined":
+				response.GuestsDeclined++
+			default:
+				response.GuestsPending++
+			}
+			if guest.CheckedInAt != nil {
+				response.CheckedInTotal++
+			}
 		}
 	}
 
-	gifts, err := s.gifts.ListByEventID(ctx, eventID)
-	if err != nil {
-		return nil, err
-	}
-
-	response.GiftsTotal = len(gifts)
-	for _, gift := range gifts {
-		switch gift.Status {
-		case "confirmed":
-			response.GiftsConfirmed++
-		case "pending_payment":
-			response.GiftsPendingPayment++
+	if agg, ok := s.gifts.(giftStatsAggregator); ok {
+		stats, err := agg.GiftStatsByEventID(ctx, eventID)
+		if err != nil {
+			return nil, err
+		}
+		response.GiftsTotal = stats.Total
+		response.GiftsConfirmed = stats.Confirmed
+		response.GiftsPendingPayment = stats.PendingPayment
+	} else {
+		gifts, err := s.gifts.ListByEventID(ctx, eventID)
+		if err != nil {
+			return nil, err
+		}
+		response.GiftsTotal = len(gifts)
+		for _, gift := range gifts {
+			switch gift.Status {
+			case "confirmed":
+				response.GiftsConfirmed++
+			case "pending_payment":
+				response.GiftsPendingPayment++
+			}
 		}
 	}
 

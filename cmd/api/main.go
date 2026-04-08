@@ -42,7 +42,12 @@ func main() {
 		log.Fatalf("migration error: %v", err)
 	}
 
-	db, err := database.Connect(ctx, cfg.DatabaseURL)
+	db, err := database.Connect(ctx, cfg.DatabaseURL, database.PoolConfig{
+		MaxConns:        cfg.DBMaxConns,
+		MinConns:        cfg.DBMinConns,
+		MaxConnLifetime: cfg.DBMaxConnLifetime,
+		MaxConnIdleTime: cfg.DBMaxConnIdleTime,
+	})
 	if err != nil {
 		log.Fatalf("database connection error: %v", err)
 	}
@@ -114,6 +119,9 @@ func main() {
 		Addr:              ":" + cfg.AppPort,
 		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       cfg.HTTPReadTimeout,
+		WriteTimeout:      cfg.HTTPWriteTimeout,
+		IdleTimeout:       cfg.HTTPIdleTimeout,
 	}
 
 	serverCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
