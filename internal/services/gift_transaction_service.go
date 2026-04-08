@@ -75,6 +75,32 @@ func (s *GiftTransactionService) ListByEvent(ctx context.Context, userID, eventI
 		return nil, err
 	}
 
+	if page < 1 && pageSize < 1 {
+		transactions, err := s.transactions.ListByEventID(ctx, eventID)
+		if err != nil {
+			return nil, err
+		}
+
+		items, err := s.buildTransactionDetails(ctx, transactions)
+		if err != nil {
+			return nil, err
+		}
+
+		total := len(transactions)
+		totalPages := 0
+		if total > 0 {
+			totalPages = 1
+		}
+
+		return &PagedResult[GiftTransactionDetails]{
+			Items:      items,
+			Total:      total,
+			Page:       1,
+			PageSize:   total,
+			TotalPages: totalPages,
+		}, nil
+	}
+
 	pagination := normalizePagination(page, pageSize)
 
 	total, err := s.transactions.CountByEventID(ctx, eventID)
@@ -87,30 +113,9 @@ func (s *GiftTransactionService) ListByEvent(ctx context.Context, userID, eventI
 		return nil, err
 	}
 
-	// Batch-load gifts in a single query instead of one query per transaction.
-	giftIDs := make([]string, len(transactions))
-	for i, t := range transactions {
-		giftIDs[i] = t.GiftID
-	}
-	giftSlice, err := s.gifts.GetByIDs(ctx, giftIDs)
+	response, err := s.buildTransactionDetails(ctx, transactions)
 	if err != nil {
 		return nil, err
-	}
-	giftByID := make(map[string]*models.Gift, len(giftSlice))
-	for _, g := range giftSlice {
-		giftByID[g.ID] = g
-	}
-
-	response := make([]GiftTransactionDetails, 0, len(transactions))
-	for _, transaction := range transactions {
-		gift, ok := giftByID[transaction.GiftID]
-		if !ok {
-			continue
-		}
-		response = append(response, GiftTransactionDetails{
-			Transaction: transaction,
-			Gift:        gift,
-		})
 	}
 
 	return &PagedResult[GiftTransactionDetails]{
@@ -320,7 +325,10 @@ func (s *GiftTransactionService) createPublicTransaction(
 
 	if s.organizerNotifications != nil {
 		go func() {
-			if err := s.organizerNotifications.NotifyGiftReserved(context.Background(), event, gift, transaction); err != nil {
+			notifyCtx, cancel := context.WithTimeout(context.Background(), asyncNotificationTimeout)
+			defer cancel()
+
+			if err := s.organizerNotifications.NotifyGiftReserved(notifyCtx, event, gift, transaction); err != nil {
 				log.Printf(
 					"organizer gift push notification failed for event %s gift %s transaction %s: %v",
 					event.ID,
@@ -333,6 +341,43 @@ func (s *GiftTransactionService) createPublicTransaction(
 	}
 
 	return &GiftTransactionDetails{Transaction: transaction, Gift: gift}, nil
+}
+
+func (s *GiftTransactionService) buildTransactionDetails(
+	ctx context.Context,
+	transactions []*models.GiftTransaction,
+) ([]GiftTransactionDetails, error) {
+	if len(transactions) == 0 {
+		return []GiftTransactionDetails{}, nil
+	}
+
+	// Batch-load gifts in a single query instead of one query per transaction.
+	giftIDs := make([]string, len(transactions))
+	for i, t := range transactions {
+		giftIDs[i] = t.GiftID
+	}
+	giftSlice, err := s.gifts.GetByIDs(ctx, giftIDs)
+	if err != nil {
+		return nil, err
+	}
+	giftByID := make(map[string]*models.Gift, len(giftSlice))
+	for _, g := range giftSlice {
+		giftByID[g.ID] = g
+	}
+
+	response := make([]GiftTransactionDetails, 0, len(transactions))
+	for _, transaction := range transactions {
+		gift, ok := giftByID[transaction.GiftID]
+		if !ok {
+			continue
+		}
+		response = append(response, GiftTransactionDetails{
+			Transaction: transaction,
+			Gift:        gift,
+		})
+	}
+
+	return response, nil
 }
 
 func (s *GiftTransactionService) getOwnedTransaction(ctx context.Context, userID, eventID, transactionID string) (*models.GiftTransaction, *models.Gift, error) {

@@ -57,6 +57,10 @@ func (h *GiftTransactionHandler) ListByEvent(w nethttp.ResponseWriter, r *nethtt
 	}
 
 	page, pageSize := apphttp.ReadPagination(r)
+	if !apphttp.HasPaginationParams(r) {
+		// Backward compatibility for older clients that fetch without page/page_size.
+		page, pageSize = 0, 0
+	}
 	details, err := h.service.ListByEvent(r.Context(), userID, chi.URLParam(r, "eventId"), page, pageSize)
 	if err != nil {
 		apphttp.MapError(w, err)

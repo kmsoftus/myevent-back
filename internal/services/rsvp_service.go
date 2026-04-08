@@ -182,7 +182,10 @@ func (s *RSVPService) SubmitBySlug(ctx context.Context, slug string, input dto.C
 
 	if s.organizerNotifications != nil {
 		go func() {
-			if err := s.organizerNotifications.NotifyNewRSVP(context.Background(), event, guest, rsvp); err != nil {
+			notifyCtx, cancel := context.WithTimeout(context.Background(), asyncNotificationTimeout)
+			defer cancel()
+
+			if err := s.organizerNotifications.NotifyNewRSVP(notifyCtx, event, guest, rsvp); err != nil {
 				log.Printf(
 					"organizer RSVP push notification failed for event %s guest %s: %v",
 					event.ID,
