@@ -155,6 +155,51 @@ func (s *OrganizerNotificationService) NotifyGiftReserved(
 	})
 }
 
+func (s *OrganizerNotificationService) SendPromotionalNotification(
+	ctx context.Context,
+	title, body string,
+) (sent int, errs []error) {
+	title = strings.TrimSpace(title)
+	body = strings.TrimSpace(body)
+
+	if title == "" {
+		return 0, []error{NewValidationError("Informe o titulo da notificacao.", "notification_title_required",
+			FieldError{Field: "title", Message: "Informe o titulo da notificacao."})}
+	}
+	if body == "" {
+		return 0, []error{NewValidationError("Informe o corpo da notificacao.", "notification_body_required",
+			FieldError{Field: "body", Message: "Informe o corpo da notificacao."})}
+	}
+
+	tokens, err := s.pushDeviceTokens.ListAll(ctx)
+	if err != nil {
+		return 0, []error{err}
+	}
+
+	msg := notifier.OrganizerPushMessage{
+		Title: title,
+		Body:  body,
+		Data:  map[string]string{"type": "promotional"},
+	}
+
+	for _, deviceToken := range tokens {
+		if err := s.pushSender.SendToDevice(ctx, deviceToken.Token, msg); err != nil {
+			errs = append(errs, fmt.Errorf("token %s: %w", deviceToken.Token[:min(8, len(deviceToken.Token))], err))
+			continue
+		}
+		sent++
+	}
+
+	return sent, errs
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func (s *OrganizerNotificationService) notifyUser(
 	ctx context.Context,
 	userID string,

@@ -39,6 +39,7 @@ type Config struct {
 	R2PublicURL                  string
 	LocalUploadDir               string
 	UploadMaxSizeBytes           int64
+	AdminEmails                  []string
 }
 
 func Load() Config {
@@ -80,6 +81,7 @@ func Load() Config {
 		R2PublicURL:                  getEnv("R2_PUBLIC_URL", ""),
 		LocalUploadDir:               getEnv("LOCAL_UPLOAD_DIR", ".data/uploads"),
 		UploadMaxSizeBytes:           getInt64Env("UPLOAD_MAX_SIZE_BYTES", 10<<20),
+		AdminEmails:                  splitCSVRaw(getEnv("ADMIN_EMAILS", "")),
 	}
 }
 
@@ -180,5 +182,18 @@ func splitCSV(value string) []string {
 		return []string{"http://localhost:3000"}
 	}
 
+	return values
+}
+
+// splitCSVRaw is like splitCSV but returns nil instead of a default value when empty.
+func splitCSVRaw(value string) []string {
+	parts := strings.Split(value, ",")
+	values := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
 	return values
 }

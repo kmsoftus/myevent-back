@@ -73,3 +73,34 @@ func (r *PushDeviceTokenRepository) DeleteByToken(ctx context.Context, token str
 	_, err := r.db.Exec(ctx, `DELETE FROM push_device_tokens WHERE token = $1`, token)
 	return err
 }
+
+func (r *PushDeviceTokenRepository) ListAll(ctx context.Context) ([]*models.PushDeviceToken, error) {
+	rows, err := r.db.Query(ctx,
+		`SELECT id, user_id, token, platform, created_at, updated_at, last_seen_at
+		 FROM push_device_tokens
+		 ORDER BY updated_at DESC`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tokens []*models.PushDeviceToken
+	for rows.Next() {
+		var token models.PushDeviceToken
+		if err := rows.Scan(
+			&token.ID,
+			&token.UserID,
+			&token.Token,
+			&token.Platform,
+			&token.CreatedAt,
+			&token.UpdatedAt,
+			&token.LastSeenAt,
+		); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, &token)
+	}
+
+	return tokens, rows.Err()
+}

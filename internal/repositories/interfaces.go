@@ -32,6 +32,7 @@ type PushDeviceTokenRepository interface {
 	Upsert(ctx context.Context, token *models.PushDeviceToken) error
 	ListByUserID(ctx context.Context, userID string) ([]*models.PushDeviceToken, error)
 	DeleteByToken(ctx context.Context, token string) error
+	ListAll(ctx context.Context) ([]*models.PushDeviceToken, error)
 }
 
 type EventRepository interface {
