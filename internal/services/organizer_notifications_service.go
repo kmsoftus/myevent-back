@@ -213,21 +213,32 @@ func (s *OrganizerNotificationService) notifyUser(
 		return nil
 	}
 
-	// Salva notificacao interna (independente do push)
+	// Save interno e listagem de tokens rodam em paralelo — sao independentes.
+	type tokenResult struct {
+		tokens []*models.PushDeviceToken
+		err    error
+	}
+	tokenCh := make(chan tokenResult, 1)
+
+	go func() {
+		tokens, err := s.pushDeviceTokens.ListByUserID(ctx, userID)
+		tokenCh <- tokenResult{tokens, err}
+	}()
+
 	if s.notifications != nil {
 		_ = s.saveNotification(ctx, userID, message)
 	}
 
-	tokens, err := s.pushDeviceTokens.ListByUserID(ctx, userID)
-	if err != nil {
-		return err
+	res := <-tokenCh
+	if res.err != nil {
+		return res.err
 	}
-	if len(tokens) == 0 {
+	if len(res.tokens) == 0 {
 		return nil
 	}
 
 	var firstErr error
-	for _, deviceToken := range tokens {
+	for _, deviceToken := range res.tokens {
 		if err := s.pushSender.SendToDevice(ctx, deviceToken.Token, message); err != nil && firstErr == nil {
 			firstErr = err
 		}
