@@ -23,7 +23,24 @@ func RunMigrations(databaseURL string) error {
 	}
 	defer m.Close()
 
-	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+	if err := m.Up(); err != nil {
+		if errors.Is(err, migrate.ErrNoChange) {
+			return nil
+		}
+
+		// Se o banco ficou em estado dirty (migration interrompida),
+		// forca a versao anterior e tenta novamente.
+		var dirtyErr *migrate.ErrDirty
+		if errors.As(err, &dirtyErr) {
+			if forceErr := m.Force(dirtyErr.Version - 1); forceErr != nil {
+				return fmt.Errorf("migration failed (dirty v%d), force also failed: %w", dirtyErr.Version, forceErr)
+			}
+			if upErr := m.Up(); upErr != nil && !errors.Is(upErr, migrate.ErrNoChange) {
+				return fmt.Errorf("migration failed after dirty recovery: %w", upErr)
+			}
+			return nil
+		}
+
 		return fmt.Errorf("migration failed: %w", err)
 	}
 
