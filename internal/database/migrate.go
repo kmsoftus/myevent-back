@@ -30,7 +30,8 @@ func RunMigrations(databaseURL string) error {
 
 		// Se o banco ficou em estado dirty (migration interrompida),
 		// forca a versao anterior e tenta novamente.
-		var dirtyErr *migrate.ErrDirty
+		// ErrDirty e value type — usa type assertion via errors.As com valor.
+		var dirtyErr migrate.ErrDirty
 		if errors.As(err, &dirtyErr) {
 			if forceErr := m.Force(dirtyErr.Version - 1); forceErr != nil {
 				return fmt.Errorf("migration failed (dirty v%d), force also failed: %w", dirtyErr.Version, forceErr)
