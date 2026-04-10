@@ -96,6 +96,14 @@ type GalleryPhotoRepository interface {
 	Delete(ctx context.Context, id string) error
 }
 
+type NotificationRepository interface {
+	Create(ctx context.Context, n *models.Notification) error
+	ListByUserID(ctx context.Context, userID string, limit, offset int) ([]*models.Notification, error)
+	CountUnreadByUserID(ctx context.Context, userID string) (int, error)
+	MarkRead(ctx context.Context, id, userID string) error
+	MarkAllRead(ctx context.Context, userID string) error
+}
+
 type GiftTransactionRepository interface {
 	Create(ctx context.Context, transaction *models.GiftTransaction) error
 	ListByEventID(ctx context.Context, eventID string) ([]*models.GiftTransaction, error)

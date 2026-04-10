@@ -16,11 +16,13 @@ import (
 type OrganizerNotificationService struct {
 	pushDeviceTokens repositories.PushDeviceTokenRepository
 	pushSender       notifier.OrganizerPushSender
+	notifications    repositories.NotificationRepository
 }
 
 func NewOrganizerNotificationService(
 	pushDeviceTokens repositories.PushDeviceTokenRepository,
 	pushSender notifier.OrganizerPushSender,
+	notifications repositories.NotificationRepository,
 ) *OrganizerNotificationService {
 	if pushSender == nil {
 		pushSender = notifier.NoopOrganizerPushSender{}
@@ -29,6 +31,7 @@ func NewOrganizerNotificationService(
 	return &OrganizerNotificationService{
 		pushDeviceTokens: pushDeviceTokens,
 		pushSender:       pushSender,
+		notifications:    notifications,
 	}
 }
 
@@ -210,6 +213,11 @@ func (s *OrganizerNotificationService) notifyUser(
 		return nil
 	}
 
+	// Salva notificacao interna (independente do push)
+	if s.notifications != nil {
+		_ = s.saveNotification(ctx, userID, message)
+	}
+
 	tokens, err := s.pushDeviceTokens.ListByUserID(ctx, userID)
 	if err != nil {
 		return err
@@ -226,6 +234,68 @@ func (s *OrganizerNotificationService) notifyUser(
 	}
 
 	return firstErr
+}
+
+func (s *OrganizerNotificationService) saveNotification(
+	ctx context.Context,
+	userID string,
+	message notifier.OrganizerPushMessage,
+) error {
+	notifType := message.Data["type"]
+	if notifType == "" {
+		notifType = "general"
+	}
+
+	n := &models.Notification{
+		ID:        uuid.NewString(),
+		UserID:    userID,
+		Type:      notifType,
+		Title:     message.Title,
+		Body:      message.Body,
+		Data:      message.Data,
+		CreatedAt: time.Now().UTC(),
+	}
+
+	return s.notifications.Create(ctx, n)
+}
+
+// ListNotifications retorna as notificacoes internas do usuario.
+func (s *OrganizerNotificationService) ListNotifications(
+	ctx context.Context,
+	userID string,
+	limit, offset int,
+) ([]*models.Notification, int, error) {
+	if limit <= 0 || limit > 50 {
+		limit = 20
+	}
+
+	list, err := s.notifications.ListByUserID(ctx, userID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	unread, err := s.notifications.CountUnreadByUserID(ctx, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return list, unread, nil
+}
+
+// MarkNotificationRead marca uma notificacao como lida.
+func (s *OrganizerNotificationService) MarkNotificationRead(
+	ctx context.Context,
+	id, userID string,
+) error {
+	return s.notifications.MarkRead(ctx, id, userID)
+}
+
+// MarkAllNotificationsRead marca todas as notificacoes do usuario como lidas.
+func (s *OrganizerNotificationService) MarkAllNotificationsRead(
+	ctx context.Context,
+	userID string,
+) error {
+	return s.notifications.MarkAllRead(ctx, userID)
 }
 
 func normalizeDevicePlatform(platform string) string {

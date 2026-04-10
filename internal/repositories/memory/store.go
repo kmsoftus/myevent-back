@@ -23,6 +23,8 @@ type Store struct {
 	pushDeviceTokens            map[string]*models.PushDeviceToken
 	pushDeviceTokenIDsByUser    map[string]map[string]struct{}
 
+	notifications map[string]*models.Notification
+
 	events      map[string]*models.Event
 	eventBySlug map[string]string
 
@@ -51,6 +53,7 @@ func NewStore() *Store {
 		passwordResetTokenIDsByUser: make(map[string]map[string]struct{}),
 		pushDeviceTokens:            make(map[string]*models.PushDeviceToken),
 		pushDeviceTokenIDsByUser:    make(map[string]map[string]struct{}),
+		notifications:               make(map[string]*models.Notification),
 		events:                      make(map[string]*models.Event),
 		eventBySlug:                 make(map[string]string),
 		guests:                      make(map[string]*models.Guest),
@@ -97,6 +100,10 @@ func (s *Store) Gifts() repositories.GiftRepository {
 
 func (s *Store) GiftTransactions() repositories.GiftTransactionRepository {
 	return &giftTransactionRepository{store: s}
+}
+
+func (s *Store) Notifications() repositories.NotificationRepository {
+	return &notificationRepository{store: s}
 }
 
 type userRepository struct {

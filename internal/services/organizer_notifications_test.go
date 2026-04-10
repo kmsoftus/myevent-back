@@ -31,6 +31,7 @@ func TestOrganizerNotificationServiceRegisterDeviceToken(t *testing.T) {
 	service := NewOrganizerNotificationService(
 		store.PushDeviceTokens(),
 		notifier.NoopOrganizerPushSender{},
+		store.Notifications(),
 	)
 
 	if err := service.RegisterDeviceToken(ctx, user.ID, "abcdefghijklmnopqrstuvwxyz123456", "IOS"); err != nil {
@@ -67,7 +68,7 @@ func TestRSVPServiceSubmitBySlugSendsOrganizerPush(t *testing.T) {
 	}
 
 	pushSender := &captureOrganizerPushSender{}
-	notificationService := NewOrganizerNotificationService(store.PushDeviceTokens(), pushSender)
+	notificationService := NewOrganizerNotificationService(store.PushDeviceTokens(), pushSender, store.Notifications())
 	if err := notificationService.RegisterDeviceToken(ctx, owner.ID, "token-owner-rsvp-abcdefghijklmnopqrstuvwxyz", "android"); err != nil {
 		t.Fatalf("register owner token: %v", err)
 	}
@@ -135,7 +136,7 @@ func TestGiftTransactionServiceReserveBySlugSendsOrganizerPush(t *testing.T) {
 	}
 
 	pushSender := &captureOrganizerPushSender{}
-	notificationService := NewOrganizerNotificationService(store.PushDeviceTokens(), pushSender)
+	notificationService := NewOrganizerNotificationService(store.PushDeviceTokens(), pushSender, store.Notifications())
 	if err := notificationService.RegisterDeviceToken(ctx, owner.ID, "token-owner-gift-abcdefghijklmnopqrstuvwxyz", "android"); err != nil {
 		t.Fatalf("register owner token: %v", err)
 	}

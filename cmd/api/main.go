@@ -64,11 +64,12 @@ func main() {
 	giftTransactions := postgres.NewGiftTransactionRepository(db)
 	galleryPhotos := postgres.NewGalleryPhotoRepository(db)
 	pushDeviceTokens := postgres.NewPushDeviceTokenRepository(db)
+	notificationsRepo := postgres.NewNotificationRepository(db)
 
 	passwordResetSender := buildPasswordResetSender(cfg)
 	registrationSender := buildRegistrationSender(cfg)
 	organizerPushSender := buildOrganizerPushSender(ctx, cfg)
-	organizerNotificationService := services.NewOrganizerNotificationService(pushDeviceTokens, organizerPushSender)
+	organizerNotificationService := services.NewOrganizerNotificationService(pushDeviceTokens, organizerPushSender, notificationsRepo)
 	authService := services.NewAuthService(
 		users,
 		passwordResetTokens,

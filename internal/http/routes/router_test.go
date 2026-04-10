@@ -1264,7 +1264,7 @@ func newTestRouterWithDeps(t *testing.T) (http.Handler, *capturePasswordResetSen
 	passwordResetSender := &capturePasswordResetSender{}
 	registrationSender := &captureRegistrationSender{}
 	organizerPushSender := &captureOrganizerPushSender{}
-	organizerNotificationService := services.NewOrganizerNotificationService(store.PushDeviceTokens(), organizerPushSender)
+	organizerNotificationService := services.NewOrganizerNotificationService(store.PushDeviceTokens(), organizerPushSender, store.Notifications())
 
 	authService := services.NewAuthService(
 		store.Users(),

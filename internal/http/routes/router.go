@@ -73,6 +73,7 @@ func NewRouter(
 	publicGalleryHandler := handlers.NewPublicGalleryHandler(galleryService)
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	adminNotificationHandler := handlers.NewAdminNotificationHandler(notificationService)
+	inAppNotificationHandler := handlers.NewInAppNotificationHandler(notificationService)
 
 	if !cfg.UseR2Storage() {
 		router.Handle("/uploads/*", http.StripPrefix("/uploads/", http.FileServer(http.Dir(cfg.LocalUploadDir))))
@@ -116,6 +117,9 @@ func NewRouter(
 
 			r.Route("/notifications", func(r chi.Router) {
 				r.Post("/device-token", notificationHandler.RegisterDeviceToken)
+				r.Get("/", inAppNotificationHandler.List)
+				r.Patch("/read-all", inAppNotificationHandler.MarkAllRead)
+				r.Patch("/{notificationId}/read", inAppNotificationHandler.MarkRead)
 			})
 
 			r.Route("/events", func(r chi.Router) {
