@@ -120,6 +120,10 @@ func (s *EventService) ListByUser(ctx context.Context, userID string, input dto.
 }
 
 func (s *EventService) GetByIDForUser(ctx context.Context, userID, eventID string) (*models.Event, error) {
+	if _, err := uuid.Parse(eventID); err != nil {
+		return nil, ErrNotFound
+	}
+
 	event, err := s.events.GetByID(ctx, eventID)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
