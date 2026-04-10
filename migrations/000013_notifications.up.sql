@@ -1,6 +1,6 @@
 CREATE TABLE notifications (
-    id          TEXT        PRIMARY KEY,
-    user_id     TEXT        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id          UUID        PRIMARY KEY,
+    user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     type        TEXT        NOT NULL,
     title       TEXT        NOT NULL,
     body        TEXT        NOT NULL,
