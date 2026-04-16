@@ -71,6 +71,7 @@ func (s *EventService) Create(ctx context.Context, userID string, input dto.Crea
 		TextColor:       defaultString(strings.TrimSpace(input.TextColor), palette.TextColor),
 		PixKey:          strings.TrimSpace(input.PixKey),
 		PixHolderName:   strings.TrimSpace(input.PixHolderName),
+		PixBank:         strings.TrimSpace(input.PixBank),
 		Status:          "published",
 		OpenRSVP:        input.OpenRSVP,
 		CreatedAt:       now,
@@ -202,6 +203,7 @@ func (s *EventService) Update(ctx context.Context, userID, eventID string, input
 	event.TextColor = strings.TrimSpace(nextTextColor)
 	event.PixKey = strings.TrimSpace(coalesceString(input.PixKey, event.PixKey))
 	event.PixHolderName = strings.TrimSpace(coalesceString(input.PixHolderName, event.PixHolderName))
+	event.PixBank = strings.TrimSpace(coalesceString(input.PixBank, event.PixBank))
 	if input.OpenRSVP != nil {
 		event.OpenRSVP = *input.OpenRSVP
 	}

@@ -22,7 +22,7 @@ func NewEventRepository(db *pgxpool.Pool) *EventRepository {
 const eventColumns = `id, user_id, title, slug, type, description, date, time,
 	location_name, address, cover_image_url, host_message,
 	theme, primary_color, secondary_color, background_color, text_color,
-	pix_key, pix_holder_name, status, open_rsvp, created_at, updated_at`
+	pix_key, pix_holder_name, pix_bank, status, open_rsvp, created_at, updated_at`
 
 func scanEvent(row pgx.Row) (*models.Event, error) {
 	var e models.Event
@@ -30,7 +30,7 @@ func scanEvent(row pgx.Row) (*models.Event, error) {
 		&e.ID, &e.UserID, &e.Title, &e.Slug, &e.Type, &e.Description,
 		&e.Date, &e.Time, &e.LocationName, &e.Address, &e.CoverImageURL,
 		&e.HostMessage, &e.Theme, &e.PrimaryColor, &e.SecondaryColor,
-		&e.BackgroundColor, &e.TextColor, &e.PixKey, &e.PixHolderName,
+		&e.BackgroundColor, &e.TextColor, &e.PixKey, &e.PixHolderName, &e.PixBank,
 		&e.Status, &e.OpenRSVP, &e.CreatedAt, &e.UpdatedAt,
 	)
 	if err != nil {
@@ -44,12 +44,12 @@ func (r *EventRepository) Create(ctx context.Context, event *models.Event) error
 		`INSERT INTO events (id, user_id, title, slug, type, description, date, time,
 			location_name, address, cover_image_url, host_message,
 			theme, primary_color, secondary_color, background_color, text_color,
-			pix_key, pix_holder_name, status, open_rsvp, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)`,
+			pix_key, pix_holder_name, pix_bank, status, open_rsvp, created_at, updated_at)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
 		event.ID, event.UserID, event.Title, event.Slug, event.Type, event.Description,
 		event.Date, event.Time, event.LocationName, event.Address, event.CoverImageURL,
 		event.HostMessage, event.Theme, event.PrimaryColor, event.SecondaryColor,
-		event.BackgroundColor, event.TextColor, event.PixKey, event.PixHolderName,
+		event.BackgroundColor, event.TextColor, event.PixKey, event.PixHolderName, event.PixBank,
 		event.Status, event.OpenRSVP, event.CreatedAt, event.UpdatedAt,
 	)
 	if err != nil {
@@ -110,12 +110,12 @@ func (r *EventRepository) Update(ctx context.Context, event *models.Event) error
 		`UPDATE events SET title=$1, slug=$2, type=$3, description=$4, date=$5, time=$6,
 			location_name=$7, address=$8, cover_image_url=$9, host_message=$10,
 			theme=$11, primary_color=$12, secondary_color=$13, background_color=$14, text_color=$15,
-			pix_key=$16, pix_holder_name=$17, status=$18, open_rsvp=$19, updated_at=$20
-		 WHERE id=$21`,
+			pix_key=$16, pix_holder_name=$17, pix_bank=$18, status=$19, open_rsvp=$20, updated_at=$21
+		 WHERE id=$22`,
 		event.Title, event.Slug, event.Type, event.Description, event.Date, event.Time,
 		event.LocationName, event.Address, event.CoverImageURL, event.HostMessage,
 		event.Theme, event.PrimaryColor, event.SecondaryColor, event.BackgroundColor, event.TextColor,
-		event.PixKey, event.PixHolderName, event.Status, event.OpenRSVP, event.UpdatedAt, event.ID,
+		event.PixKey, event.PixHolderName, event.PixBank, event.Status, event.OpenRSVP, event.UpdatedAt, event.ID,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
